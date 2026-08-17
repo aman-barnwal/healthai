@@ -1,0 +1,46 @@
+{
+    "dataset": "heart_disease",
+    "dataset_file": "heart_disease.csv",
+    "target": "num",
+    "features": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "chol",
+        "fbs",
+        "restecg",
+        "thalach",
+        "exang",
+        "oldpeak",
+        "slope",
+        "ca",
+        "thal"
+    ],
+    "removed_id_columns": [],
+    "numerical_features": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "chol",
+        "fbs",
+        "restecg",
+        "thalach",
+        "exang",
+        "oldpeak",
+        "slope",
+        "ca",
+        "thal"
+    ],
+    "categorical_features": [],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 0.8852459016393442,
+    "test_macro_f1": 0.8852459016393442,
+    "training_samples": 242,
+    "testing_samples": 61
+}

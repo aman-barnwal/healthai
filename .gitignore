@@ -1,0 +1,31 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# ML / generated files
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+
+# OS
+.DS_Store
+Thumbs.db
