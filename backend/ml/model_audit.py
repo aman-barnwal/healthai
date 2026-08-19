@@ -1,10 +1,19 @@
 from pathlib import Path
 import json
 import gc
+import os
+import traceback
+
 import joblib
+import numpy as np
 import pandas as pd
 
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from sklearn.model_selection import train_test_split
 
 
@@ -15,33 +24,36 @@ from sklearn.model_selection import train_test_split
 DATASET_DIR = Path("dataset")
 MODEL_DIR = Path("backend/models")
 
+# Skip models larger than this by default.
+# Your 6.8 GB diabetes models will be skipped instead of killing RAM.
+MAX_MODEL_SIZE_GB = 1.0
+
+# Maximum rows used during audit.
+# Prevents unnecessarily huge prediction jobs.
+MAX_AUDIT_ROWS = 50000
+
 TEST_SIZE = 0.20
 RANDOM_STATE = 123
 
-# Do not load models larger than this.
-# This prevents the audit from exhausting RAM.
-MAX_MODEL_SIZE_GB = 1.0
-
-
-print("=" * 90)
-print("HEALTHCAREAI MODEL AUDIT")
-print("=" * 90)
-
-results = []
+# Set to True only if you intentionally want to try loading huge models.
+FORCE_LOAD_HUGE_MODELS = False
 
 
 # ==============================================================
-# HELPER FUNCTIONS
+# HELPERS
 # ==============================================================
+
+def print_header(title):
+    print("\n" + "=" * 100)
+    print(title)
+    print("=" * 100)
+
 
 def model_size_bytes(path):
-    """Return model size in bytes."""
     return path.stat().st_size
 
 
-def model_size(path):
-    """Return human-readable model size."""
-
+def model_size_human(path):
     size = model_size_bytes(path)
 
     if size >= 1024 ** 3:
@@ -57,98 +69,81 @@ def model_size(path):
 
 
 def load_metadata(model_name):
-    """Load metadata file if available."""
+    """
+    Load metadata for a model if available.
+    """
 
-    metadata_path = (
-        MODEL_DIR /
-        f"{model_name}_metadata.json"
-    )
+    metadata_path = MODEL_DIR / f"{model_name}_metadata.json"
 
     if not metadata_path.exists():
-        return {}
+        return {}, None
 
     try:
-        with open(metadata_path, "r") as f:
-            return json.load(f)
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            return json.load(f), metadata_path
 
     except Exception as e:
-        print("Metadata error:", e)
-        return {}
+        print(f"Metadata load failed: {e}")
+        return {}, metadata_path
 
 
 def find_dataset(model_name, metadata):
     """
-    Try multiple methods to find the dataset used
-    for training the model.
+    Find dataset using:
+    1. metadata dataset_file
+    2. exact model-name match
+    3. normalized name match
     """
 
     # ----------------------------------------------------------
-    # METHOD 1: METADATA
+    # 1. METADATA
     # ----------------------------------------------------------
 
-    if metadata:
+    dataset_file = metadata.get("dataset_file")
 
-        dataset_file = metadata.get("dataset_file")
+    if dataset_file:
+        candidate = DATASET_DIR / dataset_file
 
-        if dataset_file:
+        if candidate.exists():
+            return candidate
 
-            dataset_file = str(dataset_file)
+        # Search recursively
+        matches = list(DATASET_DIR.rglob(dataset_file))
 
-            path = DATASET_DIR / dataset_file
-
-            if path.exists():
-                return path
-
-            # Search recursively using filename
-            for file in DATASET_DIR.rglob("*.csv"):
-
-                if file.name == Path(dataset_file).name:
-                    return file
+        if matches:
+            return matches[0]
 
     # ----------------------------------------------------------
-    # METHOD 2: EXACT MODEL NAME MATCH
+    # 2. EXACT MODEL NAME
     # ----------------------------------------------------------
 
-    for file in DATASET_DIR.rglob("*.csv"):
+    candidates = list(DATASET_DIR.rglob("*.csv"))
 
+    for file in candidates:
         if file.stem.lower() == model_name.lower():
             return file
 
     # ----------------------------------------------------------
-    # METHOD 3: NORMALIZED NAME MATCH
+    # 3. NORMALIZED MATCH
     # ----------------------------------------------------------
 
     normalized_model = (
         model_name.lower()
+        .replace("_pipeline", "")
+        .replace("_model", "")
         .replace("-", "_")
-        .replace(" ", "_")
     )
 
-    for file in DATASET_DIR.rglob("*.csv"):
+    for file in candidates:
 
         normalized_file = (
             file.stem.lower()
             .replace("-", "_")
-            .replace(" ", "_")
-        )
-
-        if normalized_file == normalized_model:
-            return file
-
-    # ----------------------------------------------------------
-    # METHOD 4: PARTIAL MATCH
-    # ----------------------------------------------------------
-
-    for file in DATASET_DIR.rglob("*.csv"):
-
-        normalized_file = (
-            file.stem.lower()
-            .replace("-", "_")
-            .replace(" ", "_")
         )
 
         if (
-            normalized_model in normalized_file
+            normalized_file == normalized_model
+            or normalized_model in normalized_file
             or normalized_file in normalized_model
         ):
             return file
@@ -158,43 +153,62 @@ def find_dataset(model_name, metadata):
 
 def detect_target(df, metadata):
     """
-    Detect target column using metadata first.
+    Determine target column.
     """
 
-    if metadata:
+    metadata_target = metadata.get("target")
 
-        target = metadata.get("target")
+    if metadata_target in df.columns:
+        return metadata_target
+
+    # Common target names
+    possible_targets = [
+        "target",
+        "label",
+        "class",
+        "diagnosis",
+        "disease",
+        "outcome",
+        "result",
+        "num",
+        "stroke",
+        "DEATH_EVENT",
+        "Diabetes_binary",
+        "Diabetes_012",
+    ]
+
+    for target in possible_targets:
 
         if target in df.columns:
             return target
 
-    # Fallback: last column
+    # Last-column fallback
     return df.columns[-1]
 
 
 def remove_id_columns(X):
     """
-    Remove likely identifier columns.
+    Remove likely ID/index columns.
     """
 
     id_columns = []
-
-    known_id_names = [
-        "id",
-        "patientid",
-        "patient_id",
-        "record_id",
-        "index",
-        "unnamed: 0"
-    ]
 
     for col in X.columns:
 
         lower = str(col).lower().strip()
 
         if (
-            lower in known_id_names
+            lower == "id"
+            or lower == "index"
+            or lower == "unnamed: 0"
             or lower.endswith("_id")
+            or lower in {
+                "patientid",
+                "patient_id",
+                "record_id",
+                "case_id",
+                "subject_id",
+            }
         ):
             id_columns.append(col)
 
@@ -204,150 +218,229 @@ def remove_id_columns(X):
     return X, id_columns
 
 
-def get_class_imbalance(y):
+def sample_dataset(df, target):
     """
-    Calculate class imbalance information.
+    Limit audit dataset size while preserving classes.
     """
 
-    counts = y.value_counts()
+    if len(df) <= MAX_AUDIT_ROWS:
+        return df
 
-    if len(counts) <= 1:
+    print(
+        f"Dataset has {len(df):,} rows. "
+        f"Sampling {MAX_AUDIT_ROWS:,} rows for audit."
+    )
+
+    try:
+
+        if df[target].nunique() > 1:
+
+            return (
+                df.groupby(
+                    target,
+                    group_keys=False
+                )
+                .apply(
+                    lambda x: x.sample(
+                        n=max(
+                            1,
+                            int(
+                                MAX_AUDIT_ROWS
+                                * len(x)
+                                / len(df)
+                            )
+                        ),
+                        random_state=RANDOM_STATE
+                    )
+                )
+                .reset_index(drop=True)
+            )
+
+    except Exception as e:
+        print(f"Stratified sampling warning: {e}")
+
+    return df.sample(
+        n=MAX_AUDIT_ROWS,
+        random_state=RANDOM_STATE
+    ).reset_index(drop=True)
+
+
+def get_expected_features(model):
+    """
+    Try to discover features expected by the trained model.
+    """
+
+    possible_objects = [model]
+
+    # Pipeline final estimator
+    try:
+
+        if hasattr(model, "steps"):
+
+            for _, step in model.steps:
+                possible_objects.append(step)
+
+    except Exception:
+        pass
+
+    for obj in possible_objects:
+
+        if hasattr(obj, "feature_names_in_"):
+
+            try:
+                return list(obj.feature_names_in_)
+            except Exception:
+                pass
+
+    return None
+
+
+def align_features(X, expected_features):
+    """
+    Align audit dataset features with model expectations.
+    """
+
+    if not expected_features:
+        return X, [], []
+
+    missing = [
+        col
+        for col in expected_features
+        if col not in X.columns
+    ]
+
+    extra = [
+        col
+        for col in X.columns
+        if col not in expected_features
+    ]
+
+    # If missing features exist, don't silently fabricate them.
+    if missing:
+        return X, missing, extra
+
+    X = X[expected_features]
+
+    return X, missing, extra
+
+
+def safe_value(value):
+    """
+    Convert NumPy/Pandas values to JSON-safe Python values.
+    """
+
+    if isinstance(
+        value,
+        (
+            np.integer,
+            np.int64,
+            np.int32,
+        )
+    ):
+        return int(value)
+
+    if isinstance(
+        value,
+        (
+            np.floating,
+            np.float64,
+            np.float32,
+        )
+    ):
+        return float(value)
+
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+
+    if pd.isna(value):
         return None
 
-    smallest = counts.min()
-    largest = counts.max()
-
-    ratio = smallest / largest
-
-    return {
-        "smallest_class": int(smallest),
-        "largest_class": int(largest),
-        "ratio": round(ratio, 4)
-    }
-
-
-def safe_result(
-    model_name,
-    status,
-    size,
-    accuracy=None,
-    macro_f1=None,
-    warning="",
-    dataset=""
-):
-    """
-    Create standardized result record.
-    """
-
-    results.append({
-        "model": model_name,
-        "status": status,
-        "dataset": dataset,
-        "accuracy": accuracy,
-        "macro_f1": macro_f1,
-        "size": size,
-        "warning": warning
-    })
+    return value
 
 
 # ==============================================================
-# GET MODELS
+# MAIN AUDIT
 # ==============================================================
+
+print_header("HEALTHCAREAI ADVANCED MODEL AUDIT")
+
+print("Dataset directory:", DATASET_DIR.resolve())
+print("Model directory:", MODEL_DIR.resolve())
+print("Maximum model size:", f"{MAX_MODEL_SIZE_GB} GB")
+print("Maximum audit rows:", f"{MAX_AUDIT_ROWS:,}")
+print("Force load huge models:", FORCE_LOAD_HUGE_MODELS)
+
+
+results = []
 
 model_files = sorted(
     MODEL_DIR.glob("*.pkl")
 )
 
-print(f"\nModels found: {len(model_files)}")
+print(f"\nModels discovered: {len(model_files)}")
 
-
-# ==============================================================
-# AUDIT EACH MODEL
-# ==============================================================
 
 for model_path in model_files:
 
-    print("\n")
-    print("-" * 90)
-
-    print(
-        f"MODEL: {model_path.name}"
-    )
+    print("\n" + "-" * 100)
+    print(f"MODEL: {model_path.name}")
+    print("-" * 100)
 
     model_name = model_path.stem
 
-    size_text = model_size(model_path)
+    size_bytes = model_size_bytes(model_path)
+    size_gb = size_bytes / (1024 ** 3)
+    size_human = model_size_human(model_path)
 
-    size_gb = (
-        model_size_bytes(model_path)
-        / (1024 ** 3)
-    )
+    warnings_list = []
 
-    print(
-        "Model size:",
-        size_text
-    )
+    print("Model size:", size_human)
 
     # ----------------------------------------------------------
-    # LOAD METADATA
-    # ----------------------------------------------------------
-
-    metadata = load_metadata(
-        model_name
-    )
-
-    if metadata:
-
-        print(
-            "Metadata:",
-            "FOUND"
-        )
-
-        if metadata.get("target"):
-
-            print(
-                "Metadata target:",
-                metadata.get("target")
-            )
-
-        if metadata.get("dataset_file"):
-
-            print(
-                "Metadata dataset:",
-                metadata.get("dataset_file")
-            )
-
-    else:
-
-        print(
-            "Metadata:",
-            "NOT FOUND"
-        )
-
-    # ----------------------------------------------------------
-    # SKIP HUGE MODELS
+    # HUGE MODEL PROTECTION
     # ----------------------------------------------------------
 
     if size_gb > MAX_MODEL_SIZE_GB:
 
         warning = (
-            f"MODEL SKIPPED: {size_gb:.2f} GB "
-            f"is larger than the {MAX_MODEL_SIZE_GB:.1f} GB limit"
+            f"MODEL TOO LARGE ({size_gb:.2f} GB). "
+            f"Skipped to protect system memory."
         )
 
-        print(
-            "WARNING:",
-            warning
-        )
+        print("WARNING:", warning)
 
-        safe_result(
-            model_name=model_name,
-            status="SKIPPED - TOO LARGE",
-            size=size_text,
-            warning=warning
-        )
+        if not FORCE_LOAD_HUGE_MODELS:
 
-        continue
+            results.append({
+                "model": model_name,
+                "status": "SKIPPED - TOO LARGE",
+                "size": size_human,
+                "dataset": None,
+                "dataset_rows": None,
+                "target": None,
+                "features": None,
+                "classes": None,
+                "accuracy": None,
+                "macro_f1": None,
+                "precision_macro": None,
+                "recall_macro": None,
+                "warning": warning,
+            })
+
+            continue
+
+    # ----------------------------------------------------------
+    # METADATA
+    # ----------------------------------------------------------
+
+    metadata, metadata_path = load_metadata(model_name)
+
+    if metadata_path and metadata:
+        print("Metadata:", metadata_path.name)
+
+    else:
+        print("Metadata: NOT FOUND")
+        warnings_list.append("METADATA NOT FOUND")
 
     # ----------------------------------------------------------
     # LOAD MODEL
@@ -357,68 +450,60 @@ for model_path in model_files:
 
     try:
 
-        print(
-            "Loading model..."
-        )
+        print("Loading model...")
 
-        model = joblib.load(
-            model_path
-        )
+        model = joblib.load(model_path)
 
-        print(
-            "Load status: OK"
-        )
-
-        print(
-            "Model type:",
-            type(model).__name__
-        )
+        print("Load status: OK")
+        print("Model type:", type(model).__name__)
 
     except MemoryError:
 
-        warning = (
-            "NOT ENOUGH MEMORY TO LOAD MODEL"
-        )
+        warning = "INSUFFICIENT MEMORY TO LOAD MODEL"
 
-        print(
-            "Load status: FAILED"
-        )
+        print("Load status: FAILED")
+        print("WARNING:", warning)
 
-        print(
-            "Error:",
-            warning
-        )
-
-        safe_result(
-            model_name=model_name,
-            status="FAILED TO LOAD",
-            size=size_text,
-            warning=warning
-        )
-
-        gc.collect()
+        results.append({
+            "model": model_name,
+            "status": "FAILED - MEMORY",
+            "size": size_human,
+            "dataset": None,
+            "dataset_rows": None,
+            "target": None,
+            "features": None,
+            "classes": None,
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": warning,
+        })
 
         continue
 
     except Exception as e:
 
-        print(
-            "Load status: FAILED"
-        )
+        warning = str(e)
 
-        print(
-            "Error:",
-            e
-        )
+        print("Load status: FAILED")
+        print("Error:", warning)
 
-        safe_result(
-            model_name=model_name,
-            status="FAILED TO LOAD",
-            size=size_text,
-            warning=str(e)
-        )
-
-        gc.collect()
+        results.append({
+            "model": model_name,
+            "status": "FAILED TO LOAD",
+            "size": size_human,
+            "dataset": None,
+            "dataset_rows": None,
+            "target": None,
+            "features": None,
+            "classes": None,
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": warning,
+        })
 
         continue
 
@@ -433,30 +518,34 @@ for model_path in model_files:
 
     if dataset_path is None:
 
-        warning = (
-            "Dataset could not be automatically matched"
-        )
+        warning = "DATASET NOT FOUND"
 
-        print(
-            "Dataset: NOT FOUND"
-        )
+        print("Dataset:", warning)
 
-        safe_result(
-            model_name=model_name,
-            status="MODEL OK / DATASET NOT FOUND",
-            size=size_text,
-            warning=warning
-        )
+        results.append({
+            "model": model_name,
+            "status": "MODEL OK - DATASET NOT FOUND",
+            "size": size_human,
+            "dataset": None,
+            "dataset_rows": None,
+            "target": None,
+            "features": None,
+            "classes": None,
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": " | ".join(
+                warnings_list + [warning]
+            ),
+        })
 
         del model
         gc.collect()
 
         continue
 
-    print(
-        "Dataset:",
-        dataset_path
-    )
+    print("Dataset:", dataset_path)
 
     # ----------------------------------------------------------
     # LOAD DATASET
@@ -465,31 +554,33 @@ for model_path in model_files:
     try:
 
         df = pd.read_csv(
-            dataset_path
+            dataset_path,
+            low_memory=False
         )
 
-        print(
-            "Dataset shape:",
-            df.shape
-        )
+        print("Original dataset shape:", df.shape)
 
     except Exception as e:
 
-        warning = (
-            f"DATASET LOAD FAILED: {e}"
-        )
+        warning = f"DATASET LOAD FAILED: {e}"
 
-        print(
-            warning
-        )
+        print(warning)
 
-        safe_result(
-            model_name=model_name,
-            status="DATASET LOAD FAILED",
-            size=size_text,
-            dataset=str(dataset_path),
-            warning=warning
-        )
+        results.append({
+            "model": model_name,
+            "status": "DATASET LOAD FAILED",
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": None,
+            "target": None,
+            "features": None,
+            "classes": None,
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": warning,
+        })
 
         del model
         gc.collect()
@@ -505,74 +596,64 @@ for model_path in model_files:
         metadata
     )
 
-    print(
-        "Target:",
-        target
-    )
+    print("Detected target:", target)
 
     if target not in df.columns:
 
-        warning = (
-            "Target column not found"
-        )
+        warning = "TARGET COLUMN NOT FOUND"
 
-        print(
-            "WARNING:",
-            warning
-        )
+        print("WARNING:", warning)
 
-        safe_result(
-            model_name=model_name,
-            status="TARGET NOT FOUND",
-            size=size_text,
-            dataset=str(dataset_path),
-            warning=warning
-        )
+        results.append({
+            "model": model_name,
+            "status": "TARGET NOT FOUND",
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": len(df),
+            "target": target,
+            "features": None,
+            "classes": None,
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": " | ".join(
+                warnings_list + [warning]
+            ),
+        })
 
         del model
         del df
-
         gc.collect()
 
         continue
 
     # ----------------------------------------------------------
-    # REMOVE ROWS WITH MISSING TARGET
+    # CLEAN DATA
     # ----------------------------------------------------------
 
-    original_rows = len(df)
+    before_rows = len(df)
 
     df = df.dropna(
         subset=[target]
     )
 
-    removed_rows = (
-        original_rows - len(df)
-    )
+    dropped_rows = before_rows - len(df)
 
-    if removed_rows > 0:
+    if dropped_rows > 0:
 
         print(
-            "Rows removed due to missing target:",
-            removed_rows
+            f"Rows dropped due to missing target: "
+            f"{dropped_rows}"
         )
 
-    # ----------------------------------------------------------
-    # CHECK DUPLICATES
-    # ----------------------------------------------------------
-
-    duplicate_rows = int(
-        df.duplicated().sum()
+    # Sample if needed
+    df = sample_dataset(
+        df,
+        target
     )
 
-    print(
-        "Duplicate rows:",
-        duplicate_rows
-    )
-
-    # ----------------------------------------------------------
-    # PREPARE FEATURES
-    # ----------------------------------------------------------
+    print("Audit dataset shape:", df.shape)
 
     X = df.drop(
         columns=[target]
@@ -584,139 +665,110 @@ for model_path in model_files:
     # REMOVE ID COLUMNS
     # ----------------------------------------------------------
 
-    X, id_columns = remove_id_columns(
-        X
-    )
+    X, id_columns = remove_id_columns(X)
 
     if id_columns:
-
         print(
-            "Removing ID columns:",
+            "Removed ID columns:",
             id_columns
         )
 
-    print(
-        "Features:",
-        X.shape
-    )
-
-    print(
-        "Classes:",
-        y.nunique()
-    )
-
     # ----------------------------------------------------------
-    # TARGET LEAKAGE CHECK
+    # FEATURE ALIGNMENT
     # ----------------------------------------------------------
 
-    leakage_columns = []
+    expected_features = get_expected_features(model)
 
-    target_lower = (
-        str(target)
-        .lower()
-        .strip()
-    )
+    if expected_features:
 
-    for col in X.columns:
-
-        col_lower = (
-            str(col)
-            .lower()
-            .strip()
+        print(
+            "Model expected features:",
+            len(expected_features)
         )
 
-        if (
-            col_lower == target_lower
-        ):
-            leakage_columns.append(
-                col
+        X, missing_features, extra_features = align_features(
+            X,
+            expected_features
+        )
+
+        if missing_features:
+
+            warning = (
+                f"FEATURE MISMATCH - "
+                f"{len(missing_features)} expected "
+                f"features missing"
             )
 
-    if leakage_columns:
-
-        print(
-            "WARNING: POSSIBLE TARGET LEAKAGE:",
-            leakage_columns
-        )
-
-    # ----------------------------------------------------------
-    # CLASS DISTRIBUTION
-    # ----------------------------------------------------------
-
-    class_info = get_class_imbalance(
-        y
-    )
-
-    if class_info:
-
-        print(
-            "Class balance ratio:",
-            class_info["ratio"]
-        )
-
-        print(
-            "Smallest class:",
-            class_info["smallest_class"]
-        )
-
-        print(
-            "Largest class:",
-            class_info["largest_class"]
-        )
-
-    # ----------------------------------------------------------
-    # CHECK DATASET SIZE
-    # ----------------------------------------------------------
-
-    if len(df) < 100:
-
-        print(
-            "WARNING: VERY SMALL DATASET"
-        )
-
-    # ----------------------------------------------------------
-    # VALIDATION SPLIT
-    # ----------------------------------------------------------
-
-    try:
-
-        stratify_value = None
-
-        if y.nunique() > 1:
-
-            class_counts = y.value_counts()
-
-            if class_counts.min() >= 2:
-
-                stratify_value = y
-
-        X_train, X_test, y_train, y_test = (
-            train_test_split(
-                X,
-                y,
-                test_size=TEST_SIZE,
-                random_state=RANDOM_STATE,
-                stratify=stratify_value
+            print("WARNING:", warning)
+            print(
+                "Missing features:",
+                missing_features[:20]
             )
-        )
 
-    except Exception as e:
+            results.append({
+                "model": model_name,
+                "status": "FEATURE MISMATCH",
+                "size": size_human,
+                "dataset": str(dataset_path),
+                "dataset_rows": len(df),
+                "target": target,
+                "features": X.shape[1],
+                "classes": int(y.nunique()),
+                "accuracy": None,
+                "macro_f1": None,
+                "precision_macro": None,
+                "recall_macro": None,
+                "warning": " | ".join(
+                    warnings_list + [warning]
+                ),
+            })
 
-        warning = (
-            f"TRAIN/TEST SPLIT FAILED: {e}"
-        )
+            del model
+            del df
+            del X
+            del y
 
-        print(
-            warning
-        )
+            gc.collect()
 
-        safe_result(
-            model_name=model_name,
-            status="SPLIT FAILED",
-            size=size_text,
-            dataset=str(dataset_path),
-            warning=warning
-        )
+            continue
+
+        if extra_features:
+
+            print(
+                f"Extra dataset features ignored: "
+                f"{len(extra_features)}"
+            )
+
+    # ----------------------------------------------------------
+    # DATA SUMMARY
+    # ----------------------------------------------------------
+
+    print("Features:", X.shape)
+    print("Classes:", y.nunique())
+
+    if y.nunique() < 2:
+
+        warning = "ONLY ONE TARGET CLASS FOUND"
+
+        print("WARNING:", warning)
+
+        results.append({
+            "model": model_name,
+            "status": "INVALID TARGET",
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": len(df),
+            "target": target,
+            "features": X.shape[1],
+            "classes": int(y.nunique()),
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": " | ".join(
+                warnings_list + [warning]
+            ),
+        })
 
         del model
         del df
@@ -728,10 +780,64 @@ for model_path in model_files:
         continue
 
     # ----------------------------------------------------------
-    # MODEL PREDICTION
+    # SPLIT DATA
     # ----------------------------------------------------------
 
     try:
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=TEST_SIZE,
+            random_state=RANDOM_STATE,
+            stratify=y
+        )
+
+        print(
+            "Audit test samples:",
+            len(X_test)
+        )
+
+    except Exception as e:
+
+        warning = f"SPLIT FAILED: {e}"
+
+        print(warning)
+
+        results.append({
+            "model": model_name,
+            "status": "SPLIT FAILED",
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": len(df),
+            "target": target,
+            "features": X.shape[1],
+            "classes": int(y.nunique()),
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": " | ".join(
+                warnings_list + [warning]
+            ),
+        })
+
+        del model
+        del df
+        del X
+        del y
+
+        gc.collect()
+
+        continue
+
+    # ----------------------------------------------------------
+    # PREDICTION
+    # ----------------------------------------------------------
+
+    try:
+
+        print("Running predictions...")
 
         predictions = model.predict(
             X_test
@@ -749,14 +855,105 @@ for model_path in model_files:
             zero_division=0
         )
 
-        print()
-        print(
-            f"AUDIT ACCURACY: {accuracy:.4f}"
+        precision_macro = precision_score(
+            y_test,
+            predictions,
+            average="macro",
+            zero_division=0
+        )
+
+        recall_macro = recall_score(
+            y_test,
+            predictions,
+            average="macro",
+            zero_division=0
         )
 
         print(
-            f"AUDIT MACRO F1: {macro_f1:.4f}"
+            f"\nAUDIT ACCURACY: "
+            f"{accuracy:.4f}"
         )
+
+        print(
+            f"AUDIT MACRO F1: "
+            f"{macro_f1:.4f}"
+        )
+
+        print(
+            f"AUDIT MACRO PRECISION: "
+            f"{precision_macro:.4f}"
+        )
+
+        print(
+            f"AUDIT MACRO RECALL: "
+            f"{recall_macro:.4f}"
+        )
+
+        # ------------------------------------------------------
+        # WARNINGS
+        # ------------------------------------------------------
+
+        if accuracy >= 0.995:
+
+            warning = (
+                "SUSPICIOUSLY HIGH ACCURACY - "
+                "CHECK FOR DATA LEAKAGE OR DATA OVERLAP"
+            )
+
+            print("WARNING:", warning)
+
+            warnings_list.append(warning)
+
+        if accuracy < 0.50:
+
+            warning = (
+                "LOW PERFORMANCE - "
+                "MODEL MAY NOT BE RELIABLE"
+            )
+
+            print("WARNING:", warning)
+
+            warnings_list.append(warning)
+
+        if macro_f1 < 0.50:
+
+            warning = (
+                "LOW MACRO F1 - "
+                "CHECK CLASS IMBALANCE"
+            )
+
+            print("WARNING:", warning)
+
+            warnings_list.append(warning)
+
+        status = "PASS"
+
+        if warnings_list:
+            status = "REVIEW"
+
+        results.append({
+            "model": model_name,
+            "status": status,
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": int(len(df)),
+            "target": target,
+            "features": int(X.shape[1]),
+            "classes": int(y.nunique()),
+            "accuracy": round(float(accuracy), 4),
+            "macro_f1": round(float(macro_f1), 4),
+            "precision_macro": round(
+                float(precision_macro),
+                4
+            ),
+            "recall_macro": round(
+                float(recall_macro),
+                4
+            ),
+            "warning": " | ".join(
+                warnings_list
+            ),
+        })
 
     except Exception as e:
 
@@ -764,216 +961,44 @@ for model_path in model_files:
             f"PREDICTION FAILED: {e}"
         )
 
-        print(
-            warning
-        )
+        print(warning)
 
-        safe_result(
-            model_name=model_name,
-            status="PREDICTION FAILED",
-            size=size_text,
-            dataset=str(dataset_path),
-            warning=warning
-        )
+        traceback.print_exc()
 
-        del model
-        del df
-        del X
-        del y
-
-        gc.collect()
-
-        continue
-
-    # ----------------------------------------------------------
-    # WARNINGS
-    # ----------------------------------------------------------
-
-    warnings_list = []
-
-    # Huge model
-
-    if size_gb > 0.5:
-
-        warnings_list.append(
-            "LARGE MODEL (> 500 MB)"
-        )
-
-    # Suspiciously high accuracy
-
-    if accuracy >= 0.995:
-
-        warning = (
-            "SUSPICIOUSLY HIGH ACCURACY - "
-            "CHECK FOR DATA LEAKAGE"
-        )
-
-        print(
-            "WARNING:",
-            warning
-        )
-
-        warnings_list.append(
-            warning
-        )
-
-    # Very high but slightly below threshold
-
-    elif accuracy >= 0.98:
-
-        warning = (
-            "VERY HIGH ACCURACY - "
-            "VERIFY WITH CROSS VALIDATION"
-        )
-
-        print(
-            "NOTICE:",
-            warning
-        )
-
-        warnings_list.append(
-            warning
-        )
-
-    # Low performance
-
-    if accuracy < 0.50:
-
-        warning = (
-            "LOW PERFORMANCE - "
-            "MODEL MAY NOT BE USEFUL"
-        )
-
-        print(
-            "WARNING:",
-            warning
-        )
-
-        warnings_list.append(
-            warning
-        )
-
-    # Poor macro F1
-
-    if macro_f1 < 0.50:
-
-        warning = (
-            "LOW MACRO F1 - "
-            "MODEL MAY PERFORM POORLY ON SOME CLASSES"
-        )
-
-        print(
-            "WARNING:",
-            warning
-        )
-
-        warnings_list.append(
-            warning
-        )
-
-    # Duplicate rows
-
-    if duplicate_rows > 0:
-
-        warning = (
-            f"DUPLICATE ROWS DETECTED: "
-            f"{duplicate_rows}"
-        )
-
-        warnings_list.append(
-            warning
-        )
-
-    # Class imbalance
-
-    if class_info:
-
-        if class_info["ratio"] < 0.10:
-
-            warning = (
-                "SEVERE CLASS IMBALANCE"
-            )
-
-            print(
-                "WARNING:",
-                warning
-            )
-
-            warnings_list.append(
-                warning
-            )
-
-        elif class_info["ratio"] < 0.30:
-
-            warning = (
-                "MODERATE CLASS IMBALANCE"
-            )
-
-            print(
-                "NOTICE:",
-                warning
-            )
-
-            warnings_list.append(
-                warning
-            )
-
-    # Possible target leakage
-
-    if leakage_columns:
-
-        warnings_list.append(
-            "POSSIBLE TARGET LEAKAGE"
-        )
-
-    # Small dataset
-
-    if len(df) < 100:
-
-        warnings_list.append(
-            "VERY SMALL DATASET"
-        )
+        results.append({
+            "model": model_name,
+            "status": "PREDICTION FAILED",
+            "size": size_human,
+            "dataset": str(dataset_path),
+            "dataset_rows": int(len(df)),
+            "target": target,
+            "features": int(X.shape[1]),
+            "classes": int(y.nunique()),
+            "accuracy": None,
+            "macro_f1": None,
+            "precision_macro": None,
+            "recall_macro": None,
+            "warning": " | ".join(
+                warnings_list + [warning]
+            ),
+        })
 
     # ----------------------------------------------------------
-    # FINAL STATUS
-    # ----------------------------------------------------------
-
-    status = "PASS"
-
-    if warnings_list:
-        status = "REVIEW"
-
-    safe_result(
-        model_name=model_name,
-        status=status,
-        accuracy=round(
-            accuracy,
-            4
-        ),
-        macro_f1=round(
-            macro_f1,
-            4
-        ),
-        size=size_text,
-        dataset=str(dataset_path),
-        warning=" | ".join(
-            warnings_list
-        )
-    )
-
-    # ----------------------------------------------------------
-    # CLEAN MEMORY
+    # MEMORY CLEANUP
     # ----------------------------------------------------------
 
     del model
     del df
     del X
     del y
-    del X_train
-    del X_test
-    del y_train
-    del y_test
-    del predictions
+
+    try:
+        del X_train
+        del X_test
+        del y_train
+        del y_test
+    except Exception:
+        pass
 
     gc.collect()
 
@@ -982,109 +1007,165 @@ for model_path in model_files:
 # FINAL REPORT
 # ==============================================================
 
-print("\n")
-print("=" * 90)
-print("FINAL MODEL AUDIT REPORT")
-print("=" * 90)
+print_header("FINAL HEALTHCAREAI MODEL AUDIT REPORT")
 
-results_df = pd.DataFrame(
-    results
-)
+results_df = pd.DataFrame(results)
 
-if not results_df.empty:
+if results_df.empty:
 
-    # Sort models with valid accuracy first
+    print("No models were audited.")
+
+else:
+
     results_df = results_df.sort_values(
-        by="accuracy",
+        by=[
+            "accuracy",
+            "macro_f1"
+        ],
         ascending=False,
         na_position="last"
     )
 
-    print()
+    display_columns = [
+        "model",
+        "status",
+        "accuracy",
+        "macro_f1",
+        "precision_macro",
+        "recall_macro",
+        "features",
+        "classes",
+        "dataset_rows",
+        "size",
+        "warning",
+    ]
+
+    existing_columns = [
+        col
+        for col in display_columns
+        if col in results_df.columns
+    ]
 
     print(
-        results_df.to_string(
+        results_df[
+            existing_columns
+        ].to_string(
             index=False
         )
-    )
-
-    # ----------------------------------------------------------
-    # SAVE REPORT
-    # ----------------------------------------------------------
-
-    output_file = (
-        MODEL_DIR /
-        "model_audit_report.csv"
-    )
-
-    results_df.to_csv(
-        output_file,
-        index=False
-    )
-
-    print("\n")
-    print(
-        "Report saved to:"
-    )
-
-    print(
-        output_file
     )
 
     # ----------------------------------------------------------
     # SUMMARY
     # ----------------------------------------------------------
 
-    print("\n")
-    print("=" * 90)
-    print("AUDIT SUMMARY")
-    print("=" * 90)
+    total = len(results_df)
 
-    print(
-        "Total models:",
-        len(results_df)
-    )
+    passed = (
+        results_df["status"] == "PASS"
+    ).sum()
 
-    print(
-        "PASS:",
-        (
-            results_df["status"]
-            == "PASS"
-        ).sum()
-    )
+    review = (
+        results_df["status"] == "REVIEW"
+    ).sum()
 
-    print(
-        "REVIEW:",
-        (
-            results_df["status"]
-            == "REVIEW"
-        ).sum()
-    )
+    failed = results_df[
+        results_df["status"].str.contains(
+            "FAILED|MISMATCH|INVALID",
+            case=False,
+            na=False
+        )
+    ].shape[0]
 
-    print(
-        "SKIPPED:",
-        results_df["status"]
-        .astype(str)
-        .str.contains(
+    skipped = results_df[
+        results_df["status"].str.contains(
             "SKIPPED",
+            case=False,
             na=False
         )
-        .sum()
-    )
+    ].shape[0]
 
-    print(
-        "FAILED:",
-        results_df["status"]
-        .astype(str)
-        .str.contains(
-            "FAILED",
-            na=False
+    print("\n" + "-" * 100)
+    print("SUMMARY")
+    print("-" * 100)
+
+    print("Total models:", total)
+    print("PASS:", passed)
+    print("REVIEW:", review)
+    print("FAILED / INVALID:", failed)
+    print("SKIPPED:", skipped)
+
+    valid_scores = results_df[
+        results_df["accuracy"].notna()
+    ]
+
+    if not valid_scores.empty:
+
+        best_model = valid_scores.iloc[0]
+
+        print("\nBEST AUDITED MODEL:")
+
+        print(
+            f"{best_model['model']} "
+            f"| Accuracy: {best_model['accuracy']:.4f} "
+            f"| Macro F1: {best_model['macro_f1']:.4f}"
         )
-        .sum()
+
+    # ----------------------------------------------------------
+    # SAVE CSV
+    # ----------------------------------------------------------
+
+    csv_path = (
+        MODEL_DIR /
+        "model_audit_report.csv"
     )
 
+    results_df.to_csv(
+        csv_path,
+        index=False
+    )
 
-print("\n")
-print("=" * 90)
+    # ----------------------------------------------------------
+    # SAVE JSON
+    # ----------------------------------------------------------
+
+    json_path = (
+        MODEL_DIR /
+        "model_audit_report.json"
+    )
+
+    safe_results = []
+
+    for row in results_df.to_dict(
+        orient="records"
+    ):
+
+        safe_row = {
+            key: safe_value(value)
+            for key, value in row.items()
+        }
+
+        safe_results.append(
+            safe_row
+        )
+
+    with open(
+        json_path,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            safe_results,
+            f,
+            indent=4
+        )
+
+    print("\nReports saved:")
+
+    print(csv_path)
+    print(json_path)
+
+
+print("\n" + "=" * 100)
 print("AUDIT COMPLETE")
-print("=" * 90)
+print("=" * 100)
