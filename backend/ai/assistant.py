@@ -1,8 +1,9 @@
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
-
+from backend.ml.predict_all import predict, list_models
 # --------------------------------------------------
 # LOAD .env FROM PROJECT ROOT
 # --------------------------------------------------
@@ -101,17 +102,7 @@ patient_session = {
 # ============================================================
 
 def get_available_models():
-
-    return [
-        {
-            "name": model["name"],
-            "target": model["target"],
-            "accuracy": model["accuracy"]
-        }
-        for model in models
-    ]
-
-
+    return list_models()
 # ============================================================
 # ROUTE USER REQUEST
 # ============================================================
