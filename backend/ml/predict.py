@@ -2,8 +2,7 @@ import joblib
 import pandas as pd
 
 
-MODEL_PATH = "backend/models/heart_disease_pipeline.pkl"
-
+MODEL_PATH = "backend/models/heart_disease.pkl"
 
 def load_model():
     """Load the trained healthcare model."""
