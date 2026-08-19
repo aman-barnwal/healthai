@@ -1,8 +1,12 @@
 MODEL_SCHEMAS = {
 
-    "heart_disease": {
+    # ============================================================
+    # HEART DISEASE
+    # ============================================================
 
-        "description": "Heart disease classification",
+    "heart_disease_pipeline": {
+
+        "description": "Heart disease risk classification",
 
         "fields": {
 
@@ -43,7 +47,7 @@ MODEL_SCHEMAS = {
 
             "fbs": {
                 "type": "category",
-                "description": "Fasting blood sugar > 120 mg/dL",
+                "description": "Fasting blood sugar greater than 120 mg/dL",
                 "values": {
                     "no": 0,
                     "yes": 1

@@ -1,6 +1,7 @@
 import os
 import json
 from pathlib import Path
+from backend.ml.schemas import MODEL_SCHEMAS
 from dotenv import load_dotenv
 from openai import OpenAI
 from backend.ml.predict_all import predict, list_models
