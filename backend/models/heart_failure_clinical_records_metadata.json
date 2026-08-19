@@ -1,0 +1,44 @@
+{
+    "dataset": "heart_failure_clinical_records",
+    "dataset_file": "heart_failure_clinical_records.csv",
+    "target": "DEATH_EVENT",
+    "features": [
+        "age",
+        "anaemia",
+        "creatinine_phosphokinase",
+        "diabetes",
+        "ejection_fraction",
+        "high_blood_pressure",
+        "platelets",
+        "serum_creatinine",
+        "serum_sodium",
+        "sex",
+        "smoking",
+        "time"
+    ],
+    "removed_id_columns": [],
+    "numerical_features": [
+        "age",
+        "anaemia",
+        "creatinine_phosphokinase",
+        "diabetes",
+        "ejection_fraction",
+        "high_blood_pressure",
+        "platelets",
+        "serum_creatinine",
+        "serum_sodium",
+        "sex",
+        "smoking",
+        "time"
+    ],
+    "categorical_features": [],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 0.85,
+    "test_macro_f1": 0.8119122257053292,
+    "training_samples": 239,
+    "testing_samples": 60
+}

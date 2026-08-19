@@ -1,0 +1,36 @@
+{
+    "dataset": "pima_diabetes",
+    "dataset_file": "pima_diabetes.csv",
+    "target": "1",
+    "features": [
+        "6",
+        "148",
+        "72",
+        "35",
+        "0",
+        "33.6",
+        "0.627",
+        "50"
+    ],
+    "removed_id_columns": [],
+    "numerical_features": [
+        "6",
+        "148",
+        "72",
+        "35",
+        "0",
+        "33.6",
+        "0.627",
+        "50"
+    ],
+    "categorical_features": [],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 0.7207792207792207,
+    "test_macro_f1": 0.6832639785717702,
+    "training_samples": 613,
+    "testing_samples": 154
+}

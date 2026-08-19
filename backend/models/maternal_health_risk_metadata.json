@@ -1,0 +1,33 @@
+{
+    "dataset": "maternal_health_risk",
+    "dataset_file": "maternal_health_risk.csv",
+    "target": "RiskLevel",
+    "features": [
+        "Age",
+        "SystolicBP",
+        "DiastolicBP",
+        "BS",
+        "BodyTemp",
+        "HeartRate"
+    ],
+    "removed_id_columns": [],
+    "numerical_features": [
+        "Age",
+        "SystolicBP",
+        "DiastolicBP",
+        "BS",
+        "BodyTemp",
+        "HeartRate"
+    ],
+    "categorical_features": [],
+    "classes": [
+        "high risk",
+        "low risk",
+        "mid risk"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 0.5824175824175825,
+    "test_macro_f1": 0.5490196078431373,
+    "training_samples": 361,
+    "testing_samples": 91
+}

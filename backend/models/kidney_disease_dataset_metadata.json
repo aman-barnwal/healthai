@@ -1,0 +1,36 @@
+{
+    "dataset": "kidney_disease_dataset",
+    "dataset_file": "kidney_disease_dataset.csv",
+    "target": "Dialysis_Needed",
+    "features": [
+        "Age",
+        "Creatinine_Level",
+        "BUN",
+        "Diabetes",
+        "Hypertension",
+        "GFR",
+        "Urine_Output",
+        "CKD_Status"
+    ],
+    "removed_id_columns": [],
+    "numerical_features": [
+        "Age",
+        "Creatinine_Level",
+        "BUN",
+        "Diabetes",
+        "Hypertension",
+        "GFR",
+        "Urine_Output",
+        "CKD_Status"
+    ],
+    "categorical_features": [],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 1.0,
+    "test_macro_f1": 1.0,
+    "training_samples": 1843,
+    "testing_samples": 461
+}

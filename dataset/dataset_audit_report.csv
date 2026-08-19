@@ -1,0 +1,46 @@
+dataset,rows,columns,missing_values,duplicate_rows,possible_target,status
+dataset/Dry_Eye_Dataset.csv,20000.0,26.0,0.0,0.0,Dry Eye Disease,OK
+dataset/ai_health_navigator.csv,10000.0,44.0,0.0,3.0,disease,OK
+dataset/breast_cancer_wisconsin_diagnostic.csv,569.0,32.0,0.0,0.0,fractal_dimension_worst,OK
+dataset/cardiovascular.csv,463.0,11.0,0.0,0.0,10,OK
+dataset/chronic_kidney_alternate.csv,400.0,25.0,0.0,0.0,class,OK
+dataset/chronic_kidney_disease.csv,,,,,,FAILED: No columns to parse from file
+dataset/diabetes_binary.csv,253680.0,22.0,0.0,24206.0,Income,OK
+dataset/diabetes_health_indicators.csv,253680.0,22.0,0.0,23899.0,Income,OK
+dataset/diabetic_data.csv,101766.0,50.0,181168.0,0.0,readmitted,OK
+dataset/disease_symptoms.csv,10000.0,44.0,0.0,3.0,disease,OK
+dataset/health_analytics/hmis-item-rpt-hp-for-2019-20.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2151: invalid start byte
+dataset/health_analytics/hmis-item-rpt-ind-for-2010-11.csv,16724.0,17.0,70749.0,0.0,Total,OK
+dataset/health_analytics/hmis-item-rpt-jh-for-2019-20.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2319: invalid start byte
+dataset/health_analytics/hmis-item-rpt-ker-for-2014-15.csv,6328.0,17.0,31054.0,0.0,Total,OK
+dataset/health_analytics/hmis-item-rpt-lak-for-2019-20.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2150: invalid start byte
+dataset/health_analytics/hmis-item-rpt-man-for-2018-19.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2174: invalid start byte
+dataset/health_analytics/hmis-item-rpt-meg-for-2018-19.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2189: invalid start byte
+dataset/health_analytics/hmis-item-rpt-mp-for-2018-19.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2207: invalid start byte
+dataset/health_analytics/hmis-item-rpt-pud-for-2019-20.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2176: invalid start byte
+dataset/health_analytics/hmis-item-rpt-tel-for-2018-19.csv,,,,,,FAILED: 'utf-8' codec can't decode byte 0xa0 in position 2236: invalid start byte
+dataset/heart_disease.csv,303.0,14.0,6.0,0.0,num,OK
+dataset/heart_failure_clinical_records.csv,299.0,13.0,0.0,0.0,DEATH_EVENT,OK
+dataset/hepatitis.csv,155.0,20.0,167.0,0.0,class,OK
+dataset/indian_liver.csv,582.0,11.0,4.0,13.0,1,OK
+dataset/kidney_disease_dataset.csv,2304.0,9.0,0.0,0.0,Dialysis_Needed,OK
+dataset/knowledge_base/icd10_mental_health.csv,13629.0,3.0,0.0,0.0,text,OK
+dataset/knowledge_base/who_universal_health_coverage_2025.csv,4587.0,3.0,0.0,0.0,text,OK
+dataset/knowledge_base/who_world_health_statistics_2024.csv,6748.0,3.0,0.0,0.0,text,OK
+dataset/knowledge_base/who_world_health_statistics_2025.csv,7565.0,3.0,0.0,0.0,text,OK
+dataset/lung_disease_data.csv,5200.0,8.0,2400.0,91.0,Recovered,OK
+dataset/maternal_health_risk.csv,1014.0,7.0,0.0,562.0,RiskLevel,OK
+dataset/mental_health_survey.csv,1253.0,26.0,794.0,0.0,obs_consequence,OK
+dataset/obesity_levels.csv,2111.0,17.0,0.0,24.0,NObeyesdad,OK
+dataset/parkinsons.csv,,,,,,FAILED: No columns to parse from file
+dataset/parkinsons_classification.csv,2025.0,24.0,374.0,0.0,Diagnosis,OK
+dataset/parkinsons_updrs.csv,5875.0,22.0,0.0,0.0,PPE,OK
+dataset/pima_diabetes.csv,767.0,9.0,0.0,0.0,1,OK
+dataset/processed-data.csv,316800.0,19.0,0.0,311040.0,Severity_None,OK
+dataset/stroke_prediction.csv,5110.0,12.0,201.0,0.0,stroke,OK
+dataset/symptom_disease/test.csv,1000.0,44.0,0.0,0.0,disease,OK
+dataset/symptom_disease/train.csv,8000.0,44.0,0.0,2.0,disease,OK
+dataset/symptom_disease/validation.csv,1000.0,44.0,0.0,0.0,disease,OK
+dataset/symptom_disease_basic.csv,1000.0,40.0,0.0,127.0,wheezing,OK
+dataset/thyroid.csv,3772.0,30.0,0.0,61.0,Class,OK
+dataset/train_folds.csv,4407.0,15.0,52188.0,0.0,fold,OK
