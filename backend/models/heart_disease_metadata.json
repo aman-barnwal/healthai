@@ -39,8 +39,8 @@
         "1"
     ],
     "model": "Random Forest",
-    "test_accuracy": 0.8852459016393442,
-    "test_macro_f1": 0.8852459016393442,
+    "test_accuracy": 0.9180327868852459,
+    "test_macro_f1": 0.9179445789615281,
     "training_samples": 242,
     "testing_samples": 61
 }

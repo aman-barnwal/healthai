@@ -74,9 +74,9 @@
         "B",
         "M"
     ],
-    "model": "Random Forest",
-    "test_accuracy": 0.9736842105263158,
-    "test_macro_f1": 0.9712773998488284,
+    "model": "Logistic Regression",
+    "test_accuracy": 0.9649122807017544,
+    "test_macro_f1": 0.9619111259605746,
     "training_samples": 455,
     "testing_samples": 114
 }

@@ -1,60 +1,41 @@
 import os
-import json
-import sys
 from pathlib import Path
+from dotenv import load_dotenv
+from openai import OpenAI
 
-
-# ============================================================
-# PROJECT PATH
-# ============================================================
+# --------------------------------------------------
+# LOAD .env FROM PROJECT ROOT
+# --------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
+ENV_PATH = PROJECT_ROOT / ".env"
 
+# Override any old shell environment variable
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
-# ============================================================
-# IMPORTS
-# ============================================================
-
-from dotenv import load_dotenv
-from groq import Groq
-
-from backend.ml.predict_all import (
-    list_models,
-    get_model_info,
-    predict
-)
-
-from backend.ml.schemas import MODEL_SCHEMAS
-
-
-# ============================================================
-# ENVIRONMENT
-# ============================================================
-
-load_dotenv()
-
-API_KEY = os.getenv("GROQ_API_KEY")
-
-MODEL = os.getenv(
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
     "openai/gpt-oss-120b"
 )
+MODEL = GROQ_MODEL
 
-if not API_KEY:
+if not GROQ_API_KEY:
     raise RuntimeError(
-        "GROQ_API_KEY is missing from .env"
+        f"GROQ_API_KEY not found in {ENV_PATH}"
     )
 
-
-# ============================================================
-# GROQ CLIENT
-# ============================================================
-
-client = Groq(
-    api_key=API_KEY
+print("HealthcareAI is connected to Groq.")
+print(f"Model: {GROQ_MODEL}")
+print(f"Using .env: {ENV_PATH}")
+print(
+    f"API key loaded: ...{GROQ_API_KEY[-6:]}"
 )
 
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
 
 # ============================================================
 # SYSTEM PROMPT
@@ -120,8 +101,6 @@ patient_session = {
 # ============================================================
 
 def get_available_models():
-
-    models = list_models()
 
     return [
         {
