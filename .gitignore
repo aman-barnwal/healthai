@@ -1,37 +1,26 @@
-# ==========================================
 # Environment / secrets
-# ==========================================
 .env
 .env.*
 !.env.example
 
-# ==========================================
 # Python virtual environments
-# ==========================================
 venv/
 .venv/
 
-# ==========================================
 # Python cache
-# ==========================================
 __pycache__/
 *.py[cod]
 
-# ==========================================
 # Jupyter
-# ==========================================
 .ipynb_checkpoints/
 
-# ==========================================
 # Local databases
-# ==========================================
 *.db
 *.sqlite
 *.sqlite3
 
-# ==========================================
-# ML models / generated model files
-# ==========================================
+# Generated ML models
+backend/models/
 *.pkl
 *.joblib
 *.pt
@@ -40,19 +29,12 @@ __pycache__/
 *.safetensors
 *.onnx
 
-# Model reports / generated artifacts
-backend/models/model_audit_report.csv
-
-# ==========================================
-# Large archives
-# ==========================================
+# Large downloaded archives
 *.zip
 *.tar
 *.tar.gz
 *.gz
 
-# ==========================================
-# OS files
-# ==========================================
+# OS
 .DS_Store
 Thumbs.db
