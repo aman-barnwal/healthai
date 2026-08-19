@@ -1,0 +1,26 @@
+model,status,dataset,accuracy,macro_f1,size,warning
+chronic_kidney_alternate,REVIEW,dataset/chronic_kidney_alternate.csv,1.0,1.0,18.93 KB,SUSPICIOUSLY HIGH ACCURACY - CHECK FOR DATA LEAKAGE
+kidney_disease_dataset,REVIEW,dataset/kidney_disease_dataset.csv,1.0,1.0,715.62 KB,SUSPICIOUSLY HIGH ACCURACY - CHECK FOR DATA LEAKAGE | SEVERE CLASS IMBALANCE
+ai_health_navigator,REVIEW,dataset/ai_health_navigator.csv,0.996,0.996,73.27 MB,SUSPICIOUSLY HIGH ACCURACY - CHECK FOR DATA LEAKAGE | DUPLICATE ROWS DETECTED: 3
+disease_symptoms,REVIEW,dataset/disease_symptoms.csv,0.996,0.996,73.27 MB,SUSPICIOUSLY HIGH ACCURACY - CHECK FOR DATA LEAKAGE | DUPLICATE ROWS DETECTED: 3
+obesity_levels,REVIEW,dataset/obesity_levels.csv,0.9953,0.9953,19.38 MB,SUSPICIOUSLY HIGH ACCURACY - CHECK FOR DATA LEAKAGE | DUPLICATE ROWS DETECTED: 24
+train_folds,REVIEW,dataset/train_folds.csv,0.9932,0.5451,4.21 MB,VERY HIGH ACCURACY - VERIFY WITH CROSS VALIDATION | SEVERE CLASS IMBALANCE
+breast_cancer_wisconsin_diagnostic,REVIEW,dataset/breast_cancer_wisconsin_diagnostic.csv,0.9912,0.9905,5.78 KB,VERY HIGH ACCURACY - VERIFY WITH CROSS VALIDATION
+thyroid,REVIEW,dataset/thyroid.csv,0.9868,0.9362,49.21 KB,VERY HIGH ACCURACY - VERIFY WITH CROSS VALIDATION | DUPLICATE ROWS DETECTED: 61 | SEVERE CLASS IMBALANCE
+heart_failure_clinical_records,REVIEW,dataset/heart_failure_clinical_records.csv,0.9833,0.9805,1.80 MB,VERY HIGH ACCURACY - VERIFY WITH CROSS VALIDATION
+parkinsons_classification,PASS,dataset/parkinsons_classification.csv,0.9778,0.9762,18.89 MB,
+stroke_prediction,REVIEW,dataset/stroke_prediction.csv,0.9511,0.4875,5.43 KB,LOW MACRO F1 - MODEL MAY PERFORM POORLY ON SOME CLASSES | SEVERE CLASS IMBALANCE
+Dry_Eye_Dataset,PASS,dataset/Dry_Eye_Dataset.csv,0.942,0.934,270.29 MB,
+pima_diabetes,PASS,dataset/pima_diabetes.csv,0.9351,0.9267,5.19 MB,
+hepatitis,REVIEW,dataset/hepatitis.csv,0.9032,0.8342,7.03 KB,MODERATE CLASS IMBALANCE
+symptom_disease_basic,REVIEW,dataset/symptom_disease_basic.csv,0.895,0.8277,7.15 KB,DUPLICATE ROWS DETECTED: 127 | MODERATE CLASS IMBALANCE
+maternal_health_risk,REVIEW,dataset/maternal_health_risk.csv,0.867,0.8706,5.60 MB,DUPLICATE ROWS DETECTED: 562
+processed-data,REVIEW,dataset/processed-data.csv,0.7501,0.6376,4.43 KB,DUPLICATE ROWS DETECTED: 311040
+indian_liver,REVIEW,dataset/indian_liver.csv,0.7179,0.5741,4.31 KB,DUPLICATE ROWS DETECTED: 13
+heart_disease,REVIEW,dataset/heart_disease.csv,0.7049,0.3069,2.27 MB,LOW MACRO F1 - MODEL MAY PERFORM POORLY ON SOME CLASSES | SEVERE CLASS IMBALANCE
+heart_disease_pipeline,REVIEW,dataset/heart_disease.csv,0.7049,0.3069,2.14 MB,LOW MACRO F1 - MODEL MAY PERFORM POORLY ON SOME CLASSES | SEVERE CLASS IMBALANCE
+diabetic_data,REVIEW,dataset/diabetic_data.csv,0.5935,0.4058,83.81 KB,LOW MACRO F1 - MODEL MAY PERFORM POORLY ON SOME CLASSES | MODERATE CLASS IMBALANCE
+breast_cancer,PREDICTION FAILED,dataset/breast_cancer_wisconsin_diagnostic.csv,,,4.52 MB,PREDICTION FAILED: Labels in y_true and y_pred should be of the same type. Got y_true=['B' 'M'] and y_pred=[0 1]. Make sure that the predictions provided by the classifier coincides with the true labels.
+diabetes_binary,SKIPPED - TOO LARGE,,,,6.72 GB,MODEL SKIPPED: 6.72 GB is larger than the 1.0 GB limit
+diabetes_health_indicators,SKIPPED - TOO LARGE,,,,6.70 GB,MODEL SKIPPED: 6.70 GB is larger than the 1.0 GB limit
+mental_health_survey,PREDICTION FAILED,dataset/mental_health_survey.csv,,,11.85 KB,PREDICTION FAILED: columns are missing: {'Unnamed: 0'}
