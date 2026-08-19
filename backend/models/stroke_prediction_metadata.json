@@ -1,0 +1,43 @@
+{
+    "dataset": "stroke_prediction",
+    "dataset_file": "stroke_prediction.csv",
+    "target": "stroke",
+    "features": [
+        "gender",
+        "age",
+        "hypertension",
+        "heart_disease",
+        "ever_married",
+        "work_type",
+        "residence_type",
+        "avg_glucose_level",
+        "bmi",
+        "smoking_status"
+    ],
+    "removed_id_columns": [
+        "id"
+    ],
+    "numerical_features": [
+        "age",
+        "hypertension",
+        "heart_disease",
+        "avg_glucose_level",
+        "bmi"
+    ],
+    "categorical_features": [
+        "gender",
+        "ever_married",
+        "work_type",
+        "residence_type",
+        "smoking_status"
+    ],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Logistic Regression",
+    "test_accuracy": 0.952054794520548,
+    "test_macro_f1": 0.5073148175476915,
+    "training_samples": 4088,
+    "testing_samples": 1022
+}

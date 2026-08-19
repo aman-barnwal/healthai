@@ -1,0 +1,67 @@
+{
+    "dataset": "parkinsons_classification",
+    "dataset_file": "parkinsons_classification.csv",
+    "target": "Diagnosis",
+    "features": [
+        "Age",
+        "Gender",
+        "Ethnicity",
+        "EducationLevel",
+        "BMI",
+        "Smoking",
+        "AlcoholConsumption",
+        "DietQuality",
+        "SleepQuality",
+        "SystolicBP",
+        "DiastolicBP",
+        "CholesterolTotal",
+        "CholesterolLDL",
+        "CholesterolHDL",
+        "CholesterolTriglycerides",
+        "UPDRS",
+        "MoCA",
+        "FunctionalAssessment",
+        "DoctorInCharge",
+        "WeeklyPhysicalActivity (hr)",
+        "MedicalHistory",
+        "Symptoms"
+    ],
+    "removed_id_columns": [
+        "PatientID"
+    ],
+    "numerical_features": [
+        "Age",
+        "BMI",
+        "AlcoholConsumption",
+        "DietQuality",
+        "SleepQuality",
+        "SystolicBP",
+        "DiastolicBP",
+        "CholesterolTotal",
+        "CholesterolLDL",
+        "CholesterolHDL",
+        "CholesterolTriglycerides",
+        "UPDRS",
+        "MoCA",
+        "FunctionalAssessment"
+    ],
+    "categorical_features": [
+        "Gender",
+        "Ethnicity",
+        "EducationLevel",
+        "Smoking",
+        "DoctorInCharge",
+        "WeeklyPhysicalActivity (hr)",
+        "MedicalHistory",
+        "Symptoms"
+    ],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "model": "Random Forest",
+    "test_accuracy": 0.854320987654321,
+    "test_macro_f1": 0.839252198131168,
+    "training_samples": 1620,
+    "testing_samples": 405
+}
