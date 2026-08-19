@@ -1,43 +1,50 @@
 import os
 import json
 from pathlib import Path
-from backend.ml.schemas import MODEL_SCHEMAS
+
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from backend.ml.schemas import MODEL_SCHEMAS
 from backend.ml.predict_all import predict, list_models
-# --------------------------------------------------
-# LOAD .env FROM PROJECT ROOT
-# --------------------------------------------------
+
+
+# ============================================================
+# PROJECT / ENVIRONMENT
+# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 ENV_PATH = PROJECT_ROOT / ".env"
 
-# Override any old shell environment variable
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+load_dotenv(
+    dotenv_path=ENV_PATH,
+    override=True
+)
+
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
     "openai/gpt-oss-120b"
 )
-MODEL = GROQ_MODEL
+
 
 if not GROQ_API_KEY:
     raise RuntimeError(
         f"GROQ_API_KEY not found in {ENV_PATH}"
     )
 
-print("HealthcareAI is connected to Groq.")
-print(f"Model: {GROQ_MODEL}")
-print(f"Using .env: {ENV_PATH}")
-print(
-    f"API key loaded: ...{GROQ_API_KEY[-6:]}"
-)
+
+MODEL = GROQ_MODEL
+
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1"
 )
+
 
 # ============================================================
 # SYSTEM PROMPT
@@ -46,45 +53,24 @@ client = OpenAI(
 SYSTEM_PROMPT = """
 You are HealthcareAI.
 
-You are a concise health-information and
-decision-support assistant.
+You provide concise health information and machine-learning
+decision support.
 
-RULES:
+Rules:
 
-- Give fact-based, medically grounded information.
-- Keep responses short and focused.
 - Never invent patient information.
-- Never invent test results.
 - Never invent medical history.
-- Never invent ML predictions.
-- An ML prediction is NOT a medical diagnosis.
-- Clearly call ML results "model estimates".
-- Ask only for information that is actually required.
-- Do not overwhelm the user with unnecessary questions.
+- Never invent laboratory results.
+- Never invent machine-learning predictions.
+- Local ML models perform predictions.
+- Never alter a local model result.
+- A machine-learning prediction is not a medical diagnosis.
+- Clearly describe ML results as model estimates.
+- Do not claim model confidence equals medical certainty.
+- Keep responses concise and easy to understand.
 - For potentially serious symptoms, recommend appropriate
   medical evaluation.
-- For possible emergency symptoms, clearly recommend
-  urgent medical care.
-
-ML RULES:
-
-- Local machine-learning models perform the predictions.
-- Groq must NOT create or alter ML predictions.
-- Never claim that model confidence represents medical certainty.
-- Never convert a model estimate into a diagnosis.
-- If the local model gives a prediction, report it accurately.
-- Keep the explanation concise.
-
-STYLE:
-
-- Natural
-- Direct
-- Factual
-- Concise
-- Easy to understand
-- No unnecessary tables
-- No unnecessary repetition
-- Do not sound like a terminal or API
+- For possible emergency symptoms, recommend urgent medical care.
 """
 
 
@@ -99,76 +85,181 @@ patient_session = {
 
 
 # ============================================================
-# AVAILABLE MODELS
+# GET AVAILABLE MODELS
 # ============================================================
 
 def get_available_models():
-    return list_models()
+
+    try:
+        models = list_models()
+
+        if isinstance(models, dict):
+            return list(models.keys())
+
+        if isinstance(models, list):
+            return models
+
+        return []
+
+    except Exception as error:
+
+        print(
+            "[HealthcareAI] Model registry error:",
+            error
+        )
+
+        return []
+
+
 # ============================================================
-# ROUTE USER REQUEST
+# NORMALIZE MODEL NAME
+# ============================================================
+
+def normalize_model_name(model_name):
+
+    if not model_name:
+        return None
+
+    # Exact schema match
+    if model_name in MODEL_SCHEMAS:
+        return model_name
+
+    # Check aliases
+    for schema_name, schema in MODEL_SCHEMAS.items():
+
+        aliases = schema.get(
+            "aliases",
+            []
+        )
+
+        if model_name in aliases:
+            return schema_name
+
+    return None
+
+
+# ============================================================
+# DETECT MODEL LOCALLY
+# ============================================================
+
+def detect_model(user_message):
+
+    text = user_message.lower()
+
+    matches = []
+
+    for model_name, schema in MODEL_SCHEMAS.items():
+
+        keywords = schema.get(
+            "keywords",
+            []
+        )
+
+        for keyword in keywords:
+
+            if keyword.lower() in text:
+
+                matches.append(
+                    (
+                        len(keyword),
+                        model_name
+                    )
+                )
+
+    if not matches:
+        return None
+
+    # Longest matching keyword wins.
+    matches.sort(
+        reverse=True,
+        key=lambda item: item[0]
+    )
+
+    return matches[0][1]
+
+
+# ============================================================
+# ROUTE REQUEST
 # ============================================================
 
 def route_request(user_message):
 
-    models = get_available_models()
+    # --------------------------------------------------------
+    # FIRST: LOCAL DETERMINISTIC ROUTING
+    # --------------------------------------------------------
+
+    detected_model = detect_model(
+        user_message
+    )
+
+    if detected_model:
+
+        return {
+            "use_ml": True,
+            "model": detected_model
+        }
+
+    # --------------------------------------------------------
+    # SECOND: GROQ FALLBACK
+    # --------------------------------------------------------
+
+    available_models = get_available_models()
 
     prompt = f"""
-Determine whether the user's message is:
+Determine whether this message is requesting a prediction from
+a local machine-learning model.
 
-1. A general health question
+USER MESSAGE:
 
-OR
-
-2. A request to use an available machine-learning model.
-
-USER:
 {user_message}
 
-AVAILABLE MODELS:
-{json.dumps(models, indent=2)}
+AVAILABLE LOCAL MODELS:
 
-Return ONLY valid JSON.
+{json.dumps(available_models, indent=2)}
 
-For a general question:
+Return ONLY JSON.
+
+For a general health question:
 
 {{
     "use_ml": false,
     "model": null
 }}
 
-For an ML request:
+For a local ML prediction request:
 
 {{
     "use_ml": true,
     "model": "exact_model_name"
 }}
 
-Rules:
-
-- Model name must exactly match an available model.
-- Do not invent models.
-- Do not select an ML model for a general medical question.
+Do not invent model names.
 """
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
-    )
+    try:
 
-    content = response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0
+        )
 
-    # Remove markdown JSON fences if Groq returns them.
-    if content.startswith("```"):
+        content = (
+            response
+            .choices[0]
+            .message
+            .content
+            .strip()
+        )
 
         content = content.replace(
             "```json",
@@ -178,11 +269,36 @@ Rules:
             ""
         ).strip()
 
-    try:
+        result = json.loads(
+            content
+        )
 
-        return json.loads(content)
+        model_name = result.get(
+            "model"
+        )
 
-    except json.JSONDecodeError:
+        normalized = normalize_model_name(
+            model_name
+        )
+
+        if normalized:
+
+            return {
+                "use_ml": True,
+                "model": normalized
+            }
+
+        return {
+            "use_ml": False,
+            "model": None
+        }
+
+    except Exception as error:
+
+        print(
+            "[HealthcareAI] Routing error:",
+            error
+        )
 
         return {
             "use_ml": False,
@@ -191,7 +307,7 @@ Rules:
 
 
 # ============================================================
-# EXTRACT PATIENT INFORMATION
+# EXTRACT INFORMATION
 # ============================================================
 
 def extract_information(
@@ -206,18 +322,28 @@ def extract_information(
     if not schema:
         return {}
 
-    fields = schema["fields"]
+    fields = schema.get(
+        "fields",
+        {}
+    )
+
+    # No schema yet.
+    if not fields:
+        return {}
 
     prompt = f"""
-Extract patient information from the user's message.
+Extract only explicitly provided patient information.
 
 USER MESSAGE:
+
 {user_message}
 
 MODEL:
+
 {model_name}
 
-MODEL FIELD SCHEMA:
+REQUIRED FIELD SCHEMA:
+
 {json.dumps(fields, indent=2)}
 
 Return ONLY valid JSON:
@@ -226,65 +352,40 @@ Return ONLY valid JSON:
     "provided_data": {{}}
 }}
 
-IMPORTANT RULES:
+Rules:
 
-1. Extract ONLY information explicitly provided by the user.
-2. Never guess missing values.
-3. Never invent measurements.
-4. Use the exact field names from the schema.
+1. Use only exact field names from the schema.
+2. Never guess.
+3. Never invent values.
+4. Extract only values explicitly provided.
 5. Convert numeric values to numbers.
-6. For categorical fields, convert the user's words
-   to the exact numeric value defined in "values".
-7. For yes/no fields, use the values defined in the schema.
-8. Never create a value if the user did not provide it.
-9. Do not include fields that were not provided.
-10. If the user uses natural language, map it to the
-    appropriate schema value.
-
-Examples:
-
-"male" -> sex = 1
-"female" -> sex = 0
-
-"typical angina" -> cp = 1
-"atypical angina" -> cp = 2
-"non-anginal pain" -> cp = 3
-"asymptomatic" -> cp = 4
-
-"normal ECG" -> restecg = 0
-
-"no exercise-induced angina" -> exang = 0
-"exercise-induced angina" -> exang = 1
-
-"upsloping" -> slope = 1
-"flat" -> slope = 2
-"downsloping" -> slope = 3
-
-"normal thalassemia" -> thal = 3
-"fixed defect" -> thal = 6
-"reversible defect" -> thal = 7
-
-Return JSON only.
+6. Do not include missing fields.
 """
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
-    )
+    try:
 
-    content = response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0
+        )
 
-    if content.startswith("```"):
+        content = (
+            response
+            .choices[0]
+            .message
+            .content
+            .strip()
+        )
 
         content = content.replace(
             "```json",
@@ -294,18 +395,28 @@ Return JSON only.
             ""
         ).strip()
 
-    try:
+        result = json.loads(
+            content
+        )
 
-        result = json.loads(content)
+        data = result.get(
+            "provided_data",
+            {}
+        )
 
-    except json.JSONDecodeError:
+        if isinstance(data, dict):
+            return data
 
         return {}
 
-    return result.get(
-        "provided_data",
-        {}
-    )
+    except Exception as error:
+
+        print(
+            "[HealthcareAI] Extraction error:",
+            error
+        )
+
+        return {}
 
 
 # ============================================================
@@ -314,9 +425,10 @@ Return JSON only.
 
 def merge_patient_data(new_data):
 
-    global patient_session
-
-    if not isinstance(new_data, dict):
+    if not isinstance(
+        new_data,
+        dict
+    ):
         return
 
     patient_session["data"].update(
@@ -328,9 +440,7 @@ def merge_patient_data(new_data):
 # FIND MISSING FIELDS
 # ============================================================
 
-def get_missing_fields(
-    model_name
-):
+def get_missing_fields(model_name):
 
     schema = MODEL_SCHEMAS.get(
         model_name
@@ -339,82 +449,58 @@ def get_missing_fields(
     if not schema:
         return []
 
-    required_fields = list(
-        schema["fields"].keys()
+    fields = schema.get(
+        "fields",
+        {}
     )
 
-    current_data = (
-        patient_session["data"]
-    )
+    current_data = patient_session[
+        "data"
+    ]
 
     missing = []
 
-    for field in required_fields:
+    for field in fields:
 
         if field not in current_data:
 
-            missing.append(field)
+            missing.append(
+                field
+            )
 
     return missing
 
 
 # ============================================================
-# FIELD DISPLAY NAMES
+# FORMAT FIELD NAME
 # ============================================================
 
-def format_field_name(field):
+def format_field_name(
+    model_name,
+    field
+):
 
-    names = {
+    schema = MODEL_SCHEMAS.get(
+        model_name,
+        {}
+    )
 
-        "age":
-            "Age (years)",
+    fields = schema.get(
+        "fields",
+        {}
+    )
 
-        "sex":
-            "Sex (male/female)",
-
-        "cp":
-            "Chest pain type "
-            "(typical angina / atypical angina / "
-            "non-anginal pain / asymptomatic)",
-
-        "trestbps":
-            "Resting blood pressure (mmHg)",
-
-        "chol":
-            "Cholesterol (mg/dL)",
-
-        "fbs":
-            "Fasting blood sugar > 120 mg/dL (yes/no)",
-
-        "restecg":
-            "Resting ECG result "
-            "(normal / ST-T wave abnormality / "
-            "left ventricular hypertrophy)",
-
-        "thalach":
-            "Maximum heart rate achieved",
-
-        "exang":
-            "Exercise-induced angina (yes/no)",
-
-        "oldpeak":
-            "ST depression induced by exercise",
-
-        "slope":
-            "Exercise ST-segment slope "
-            "(upsloping / flat / downsloping)",
-
-        "ca":
-            "Number of major vessels (0-3)",
-
-        "thal":
-            "Thalassemia result "
-            "(normal / fixed defect / reversible defect)"
-    }
-
-    return names.get(
+    field_info = fields.get(
         field,
-        field
+        {}
+    )
+
+    return field_info.get(
+        "label",
+        field.replace(
+            "_",
+            " "
+        ).title()
     )
 
 
@@ -423,127 +509,104 @@ def format_field_name(field):
 # ============================================================
 
 def ask_for_missing(
+    model_name,
     missing_fields
 ):
 
-    readable = [
-        format_field_name(field)
-        for field in missing_fields
-    ]
+    readable_fields = []
 
-    prompt = f"""
-Ask the user for these missing health-assessment values:
+    for field in missing_fields:
 
-{json.dumps(readable, indent=2)}
+        readable_fields.append(
+            format_field_name(
+                model_name,
+                field
+            )
+        )
 
-Rules:
+    lines = []
 
-- Keep it very concise.
-- Use bullet points.
-- Do not explain each field.
-- Do not invent values.
-- Do not mention internal dataset codes.
-- Do not mention ML implementation details.
-- Ask only for the missing values.
-"""
+    for field in readable_fields:
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0
+        lines.append(
+            f"- {field}"
+        )
+
+    return (
+        "To run the local model, I need:\n\n"
+        + "\n".join(lines)
     )
-
-    return response.choices[0].message.content
 
 
 # ============================================================
-# EXPLAIN ML RESULT
+# EXPLAIN PREDICTION
 # ============================================================
 
 def explain_prediction(
     user_message,
-    result
+    result,
+    model_name
 ):
 
     prompt = f"""
-You are HealthcareAI responding after a local
-machine-learning model has completed an assessment.
+A local machine-learning model has completed an assessment.
+
+MODEL:
+
+{model_name}
 
 USER MESSAGE:
+
 {user_message}
 
-LOCAL ML RESULT:
+LOCAL MODEL RESULT:
+
 {json.dumps(result, indent=2)}
 
-Write a natural, human-sounding response.
+Write a concise response.
 
-IMPORTANT RULES:
+Rules:
 
-1. Do not sound like a terminal, API, database, or technical log.
-2. Do not output JSON.
-3. Do not mention internal field names.
-4. Do not repeat every patient input.
-5. Do not invent patient information.
-6. Do not invent medical results.
-7. Do not change the local ML prediction.
-8. Clearly describe the result as a machine-learning model estimate.
-9. Never describe the prediction as a confirmed diagnosis.
-10. Mention model confidence if available.
-11. Explain the result in simple language.
-12. Keep the response short: 2-4 sentences.
-13. Do not give unnecessary generic health advice.
-14. If the user's message contains a potentially concerning
-    symptom, acknowledge it appropriately.
-15. Never claim that model confidence represents medical certainty.
-
-For binary classification:
-
-- prediction "0" means the model's negative class.
-- prediction "1" means the model's positive class.
-
-Do NOT automatically translate these into a confirmed
-medical diagnosis.
-
-For heart disease, prefer wording such as:
-
-"Based on the information provided, the model estimates
-a negative heart-disease classification..."
-
-instead of:
-
-"You don't have heart disease."
-
-For other models, describe the model's output accurately
-without inventing what the class means.
-
-Respond naturally and conversationally.
+- Do not change the prediction.
+- Do not invent medical findings.
+- Call it a machine-learning model estimate.
+- Do not call it a confirmed diagnosis.
+- Mention probability or confidence only if present.
+- Keep the answer between 2 and 4 sentences.
 """
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.2
-    )
+    try:
 
-    return response.choices[0].message.content
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.2
+        )
+
+        return (
+            response
+            .choices[0]
+            .message
+            .content
+        )
+
+    except Exception:
+
+        return (
+            "The local machine-learning model completed "
+            "the assessment. This result is a model estimate "
+            "and not a medical diagnosis.\n\n"
+            f"Result: {result}"
+        )
 
 
 # ============================================================
@@ -569,7 +632,12 @@ def answer_general_question(
         temperature=0.2
     )
 
-    return response.choices[0].message.content
+    return (
+        response
+        .choices[0]
+        .message
+        .content
+    )
 
 
 # ============================================================
@@ -578,36 +646,51 @@ def answer_general_question(
 
 def reset_session():
 
-    global patient_session
+    patient_session["model"] = None
 
-    patient_session = {
-        "model": None,
-        "data": {}
-    }
+    patient_session["data"] = {}
 
 
 # ============================================================
-# MAIN HEALTHCAREAI
+# CHECK MODEL CONFIGURATION
+# ============================================================
+
+def model_is_configured(
+    model_name
+):
+
+    schema = MODEL_SCHEMAS.get(
+        model_name
+    )
+
+    if not schema:
+        return False
+
+    fields = schema.get(
+        "fields",
+        {}
+    )
+
+    return bool(fields)
+
+
+# ============================================================
+# MAIN HEALTHCARE AI
 # ============================================================
 
 def ask_healthcare_ai(
     user_message
 ):
 
-    global patient_session
-
     # ========================================================
-    # CONTINUE EXISTING ML SESSION
+    # CONTINUE EXISTING ASSESSMENT
     # ========================================================
 
-    if patient_session["model"] is not None:
+    if patient_session["model"]:
 
-        model_name = patient_session["model"]
-
-        print(
-            f"\n[HealthcareAI] Continuing "
-            f"{model_name} assessment..."
-        )
+        model_name = patient_session[
+            "model"
+        ]
 
         new_data = extract_information(
             user_message,
@@ -617,19 +700,6 @@ def ask_healthcare_ai(
         merge_patient_data(
             new_data
         )
-
-        missing = get_missing_fields(
-            model_name
-        )
-
-        if missing:
-
-            return ask_for_missing(
-                missing
-            )
-
-        # All required data received.
-        # Continue to model prediction.
 
     else:
 
@@ -641,46 +711,54 @@ def ask_healthcare_ai(
             user_message
         )
 
-        use_ml = routing.get(
-            "use_ml",
-            False
-        )
-
-        model_name = routing.get(
-            "model"
-        )
-
-        # ====================================================
-        # GENERAL HEALTH QUESTION
-        # ====================================================
-
-        if not use_ml:
+        if not routing.get(
+            "use_ml"
+        ):
 
             return answer_general_question(
                 user_message
             )
 
-        # ====================================================
-        # START NEW ML SESSION
-        # ====================================================
+        model_name = routing.get(
+            "model"
+        )
 
-        if model_name not in MODEL_SCHEMAS:
+        model_name = normalize_model_name(
+            model_name
+        )
+
+        if not model_name:
 
             return (
-                "I don't have a configured assessment "
-                "for that condition yet."
+                "I could not match that request to one of "
+                "my configured local assessments."
             )
 
-        patient_session["model"] = model_name
+        # ----------------------------------------------------
+        # MODEL EXISTS BUT INPUT SCHEMA NOT CONFIGURED
+        # ----------------------------------------------------
+
+        if not model_is_configured(
+            model_name
+        ):
+
+            return (
+                f"The local model for "
+                f"'{MODEL_SCHEMAS[model_name]['description']}' "
+                f"is available, but its patient input schema "
+                f"has not been configured yet."
+            )
+
+        patient_session["model"] = (
+            model_name
+        )
+
         patient_session["data"] = {}
 
         print(
             f"\n[HealthcareAI] Starting "
             f"{model_name} assessment..."
         )
-
-        # Extract information already present
-        # in the first user message.
 
         new_data = extract_information(
             user_message,
@@ -691,31 +769,35 @@ def ask_healthcare_ai(
             new_data
         )
 
-        missing = get_missing_fields(
-            model_name
-        )
-
-        if missing:
-
-            return ask_for_missing(
-                missing
-            )
 
     # ========================================================
-    # RUN LOCAL ML MODEL
+    # CHECK MISSING DATA
+    # ========================================================
+
+    missing = get_missing_fields(
+        model_name
+    )
+
+    if missing:
+
+        return ask_for_missing(
+            model_name,
+            missing
+        )
+
+
+    # ========================================================
+    # RUN LOCAL MODEL
     # ========================================================
 
     print(
-        "\n[HealthcareAI] All required "
-        "model inputs received."
+        "\n[HealthcareAI] All required model "
+        "inputs received."
     )
 
     print(
         "[HealthcareAI] Running local ML model..."
     )
-
-    # Keep detailed patient data in terminal logs
-    # but never send this raw technical output to the user.
 
     print(
         "[HealthcareAI] Patient data:"
@@ -727,6 +809,7 @@ def ask_healthcare_ai(
             indent=2
         )
     )
+
 
     try:
 
@@ -745,21 +828,25 @@ def ask_healthcare_ai(
         reset_session()
 
         return (
-            "I couldn't run the model with "
-            "the provided information."
+            "I couldn't run the local model with "
+            "the provided information. The model input "
+            "format may need adjustment."
         )
 
+
     # ========================================================
-    # EXPLAIN RESULT NATURALLY
+    # EXPLAIN RESULT
     # ========================================================
 
     answer = explain_prediction(
         user_message,
-        result
+        result,
+        model_name
     )
 
+
     # ========================================================
-    # RESET SESSION AFTER COMPLETION
+    # RESET AFTER COMPLETION
     # ========================================================
 
     reset_session()
@@ -782,12 +869,17 @@ if __name__ == "__main__":
     )
 
     print(
-        "Local ML models loaded."
+        f"Using .env: {ENV_PATH}"
+    )
+
+    print(
+        "Local ML model registry ready."
     )
 
     print(
         "Type 'exit' to stop.\n"
     )
+
 
     while True:
 
@@ -805,13 +897,25 @@ if __name__ == "__main__":
 
             break
 
-        if user_message.lower().strip() == "exit":
+
+        if (
+            user_message
+            .lower()
+            .strip()
+            == "exit"
+        ):
+
+            print(
+                "Exiting HealthcareAI."
+            )
 
             break
+
 
         if not user_message.strip():
 
             continue
+
 
         try:
 

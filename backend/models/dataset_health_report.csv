@@ -1,0 +1,47 @@
+dataset,status,columns,error
+dataset/Dry_Eye_Dataset.csv,OK,26.0,
+dataset/ai_health_navigator.csv,OK,44.0,
+dataset/breast_cancer_wisconsin_diagnostic.csv,OK,32.0,
+dataset/cardiovascular.csv,OK,11.0,
+dataset/chronic_kidney_alternate.csv,OK,25.0,
+dataset/chronic_kidney_disease.csv,FAILED,,No columns to parse from file
+dataset/dataset_audit_report.csv,OK,7.0,
+dataset/diabetes_binary.csv,OK,22.0,
+dataset/diabetes_health_indicators.csv,OK,22.0,
+dataset/diabetic_data.csv,OK,50.0,
+dataset/disease_symptoms.csv,OK,44.0,
+dataset/health_analytics/hmis-item-rpt-hp-for-2019-20.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2151: invalid start byte
+dataset/health_analytics/hmis-item-rpt-ind-for-2010-11.csv,OK,17.0,
+dataset/health_analytics/hmis-item-rpt-jh-for-2019-20.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2319: invalid start byte
+dataset/health_analytics/hmis-item-rpt-ker-for-2014-15.csv,OK,17.0,
+dataset/health_analytics/hmis-item-rpt-lak-for-2019-20.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2150: invalid start byte
+dataset/health_analytics/hmis-item-rpt-man-for-2018-19.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2174: invalid start byte
+dataset/health_analytics/hmis-item-rpt-meg-for-2018-19.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2189: invalid start byte
+dataset/health_analytics/hmis-item-rpt-mp-for-2018-19.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2207: invalid start byte
+dataset/health_analytics/hmis-item-rpt-pud-for-2019-20.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2176: invalid start byte
+dataset/health_analytics/hmis-item-rpt-tel-for-2018-19.csv,FAILED,,'utf-8' codec can't decode byte 0xa0 in position 2236: invalid start byte
+dataset/heart_disease.csv,OK,14.0,
+dataset/heart_failure_clinical_records.csv,OK,13.0,
+dataset/hepatitis.csv,OK,20.0,
+dataset/indian_liver.csv,OK,11.0,
+dataset/kidney_disease_dataset.csv,OK,9.0,
+dataset/knowledge_base/icd10_mental_health.csv,OK,3.0,
+dataset/knowledge_base/who_universal_health_coverage_2025.csv,OK,3.0,
+dataset/knowledge_base/who_world_health_statistics_2024.csv,OK,3.0,
+dataset/knowledge_base/who_world_health_statistics_2025.csv,OK,3.0,
+dataset/lung_disease_data.csv,OK,8.0,
+dataset/maternal_health_risk.csv,OK,7.0,
+dataset/mental_health_survey.csv,OK,26.0,
+dataset/obesity_levels.csv,OK,17.0,
+dataset/parkinsons.csv,FAILED,,No columns to parse from file
+dataset/parkinsons_classification.csv,OK,24.0,
+dataset/parkinsons_updrs.csv,OK,22.0,
+dataset/pima_diabetes.csv,OK,9.0,
+dataset/processed-data.csv,OK,19.0,
+dataset/stroke_prediction.csv,OK,12.0,
+dataset/symptom_disease/test.csv,OK,44.0,
+dataset/symptom_disease/train.csv,OK,44.0,
+dataset/symptom_disease/validation.csv,OK,44.0,
+dataset/symptom_disease_basic.csv,OK,40.0,
+dataset/thyroid.csv,OK,30.0,
+dataset/train_folds.csv,OK,15.0,
