@@ -3,11 +3,13 @@ import json
 import re
 from pathlib import Path
 
+import joblib
+import pandas as pd
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
 from backend.ml.schemas import MODEL_SCHEMAS
-from backend.ml.predict_all import predict, list_models
 
 
 # ============================================================
@@ -15,6 +17,7 @@ from backend.ml.predict_all import predict, list_models
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 ENV_PATH = PROJECT_ROOT / ".env"
 
 load_dotenv(
@@ -34,8 +37,6 @@ if not GROQ_API_KEY:
         f"GROQ_API_KEY not found in {ENV_PATH}"
     )
 
-MODEL = GROQ_MODEL
-
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
@@ -48,30 +49,95 @@ client = OpenAI(
 # ============================================================
 
 SYSTEM_PROMPT = """
-You are HealthcareAI, a helpful AI health assistant.
+You are HealthcareAI.
 
-You provide clear, concise health information and support
-local machine-learning health assessments.
+You are a conversational healthcare assistant.
+
+You provide clear, concise health information.
+
+You also work with local machine-learning models that
+can provide AI-based risk estimates.
 
 Important rules:
 
+- Never claim an ML prediction is a medical diagnosis.
 - Never invent patient information.
-- Never invent medical history.
 - Never invent laboratory results.
-- Never invent machine-learning predictions.
-- Local ML models perform all predictions.
-- Never alter or replace a local model result.
-- A machine-learning prediction is not a medical diagnosis.
-- Clearly describe ML results as estimates.
-- Do not claim probability or model confidence equals medical certainty.
-- Keep responses natural and conversational.
-- Avoid unnecessary medical jargon.
-- Ask one or two related questions at a time during assessments.
-- Do not dump a long questionnaire on the user.
-- Remember information already provided during the current assessment.
-- For potentially serious symptoms, recommend medical evaluation.
-- For possible emergency symptoms, recommend urgent medical care.
+- Never invent ML predictions.
+- Local ML models perform predictions.
+- Never modify or fabricate a local model result.
+- Explain model results in simple language.
+- Do not overwhelm users with technical details.
+- Ask questions naturally, one at a time.
+- Remember information already provided by the user.
+- Do not ask the user for the same information twice.
+- If the user says "yes it was normal", interpret that
+  naturally instead of forcing them to answer again.
+- If the user makes a small typo such as "make" instead
+  of "male", infer the intended answer when obvious.
+- Keep the conversation natural and friendly.
+- Avoid asking for numeric dataset codes unless absolutely
+  necessary.
+- Convert natural answers into model-compatible values internally.
+- A model estimate is not medical certainty.
+- For severe or emergency symptoms recommend urgent medical care.
 """
+
+
+# ============================================================
+# MODEL PATHS
+# ============================================================
+
+MODEL_DIRECTORY = PROJECT_ROOT / "backend" / "models"
+
+
+def get_model_path(model_name):
+
+    possible_paths = [
+
+        MODEL_DIRECTORY / f"{model_name}.pkl",
+
+        MODEL_DIRECTORY / f"{model_name.lower()}.pkl",
+
+        MODEL_DIRECTORY / f"{model_name}_pipeline.pkl",
+
+    ]
+
+    for path in possible_paths:
+
+        if path.exists():
+
+            return path
+
+    return None
+
+
+# ============================================================
+# MODEL CACHE
+# ============================================================
+
+MODEL_CACHE = {}
+
+
+def load_local_model(model_name):
+
+    if model_name in MODEL_CACHE:
+
+        return MODEL_CACHE[model_name]
+
+    model_path = get_model_path(model_name)
+
+    if not model_path:
+
+        raise FileNotFoundError(
+            f"Model file not found for '{model_name}'"
+        )
+
+    model = joblib.load(model_path)
+
+    MODEL_CACHE[model_name] = model
+
+    return model
 
 
 # ============================================================
@@ -79,25 +145,28 @@ Important rules:
 # ============================================================
 
 patient_session = {
+
+    "active": False,
+
     "model": None,
+
     "data": {},
-    "profile": {},
-    "current_field": None,
-    "started": False,
-    "original_request": ""
+
+    "question_index": 0,
+
+    "questions": []
+
 }
 
 
 # ============================================================
-# JSON HELPERS
+# JSON HELPER
 # ============================================================
 
 def extract_json(text):
-    """
-    Extract JSON safely from an LLM response.
-    """
 
     if not text:
+
         return None
 
     text = text.strip()
@@ -115,12 +184,12 @@ def extract_json(text):
         text
     )
 
-    text = text.strip()
-
     try:
+
         return json.loads(text)
 
-    except json.JSONDecodeError:
+    except Exception:
+
         pass
 
     match = re.search(
@@ -130,343 +199,22 @@ def extract_json(text):
     )
 
     if match:
+
         try:
+
             return json.loads(
                 match.group()
             )
 
-        except json.JSONDecodeError:
+        except Exception:
+
             return None
 
     return None
 
 
 # ============================================================
-# NORMALIZATION HELPERS
-# ============================================================
-
-def normalize_text(value):
-
-    if value is None:
-        return ""
-
-    return str(value).strip().lower()
-
-
-def extract_first_number(text):
-
-    match = re.search(
-        r"-?\d+(?:\.\d+)?",
-        str(text)
-    )
-
-    if not match:
-        return None
-
-    try:
-        return float(match.group())
-
-    except ValueError:
-        return None
-
-
-def parse_yes_no(value):
-
-    text = normalize_text(value)
-
-    yes_values = [
-        "yes",
-        "y",
-        "yeah",
-        "yep",
-        "haan",
-        "ha",
-        "han",
-        "true",
-        "1"
-    ]
-
-    no_values = [
-        "no",
-        "n",
-        "nope",
-        "nah",
-        "nahi",
-        "nahin",
-        "false",
-        "0"
-    ]
-
-    if text in yes_values:
-        return 1
-
-    if text in no_values:
-        return 0
-
-    return None
-
-
-def parse_sex(value):
-
-    text = normalize_text(value)
-
-    if text in [
-        "male",
-        "m",
-        "man",
-        "boy"
-    ]:
-        return 1
-
-    if text in [
-        "female",
-        "f",
-        "woman",
-        "girl"
-    ]:
-        return 0
-
-    return None
-
-
-# ============================================================
-# BMI
-# ============================================================
-
-def calculate_bmi(height_cm, weight_kg):
-
-    try:
-
-        height_m = float(height_cm) / 100
-
-        weight = float(weight_kg)
-
-        if height_m <= 0 or weight <= 0:
-            return None
-
-        bmi = weight / (height_m ** 2)
-
-        return round(bmi, 2)
-
-    except Exception:
-        return None
-
-
-def extract_height_weight(text):
-
-    text = normalize_text(text)
-
-    height = None
-    weight = None
-
-    # Example:
-    # 177 cm, 85 kg
-    # 177cm 85kg
-
-    height_match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(?:cm|centimeter|centimeters)",
-        text
-    )
-
-    weight_match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilogram|kilograms)",
-        text
-    )
-
-    if height_match:
-        height = float(
-            height_match.group(1)
-        )
-
-    if weight_match:
-        weight = float(
-            weight_match.group(1)
-        )
-
-    # Support:
-    # 5'10"
-    feet_match = re.search(
-        r"(\d+)\s*(?:ft|feet|foot|')\s*(\d+)?",
-        text
-    )
-
-    if height is None and feet_match:
-
-        feet = float(
-            feet_match.group(1)
-        )
-
-        inches = float(
-            feet_match.group(2) or 0
-        )
-
-        height = round(
-            (feet * 30.48) +
-            (inches * 2.54),
-            2
-        )
-
-    # Support:
-    # 180 lbs
-    pound_match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?)",
-        text
-    )
-
-    if weight is None and pound_match:
-
-        pounds = float(
-            pound_match.group(1)
-        )
-
-        weight = round(
-            pounds * 0.453592,
-            2
-        )
-
-    return height, weight
-
-
-# ============================================================
-# AGE CONVERSION
-# ============================================================
-
-def age_to_brfss_category(age):
-    """
-    Converts real age into the 1-13 BRFSS age category
-    used by the diabetes_binary dataset.
-
-    1  = 18-24
-    2  = 25-29
-    3  = 30-34
-    ...
-    12 = 75-79
-    13 = 80+
-    """
-
-    try:
-
-        age = float(age)
-
-    except Exception:
-        return None
-
-    if age < 18:
-        return None
-
-    if age <= 24:
-        return 1
-
-    if age <= 29:
-        return 2
-
-    if age <= 34:
-        return 3
-
-    if age <= 39:
-        return 4
-
-    if age <= 44:
-        return 5
-
-    if age <= 49:
-        return 6
-
-    if age <= 54:
-        return 7
-
-    if age <= 59:
-        return 8
-
-    if age <= 64:
-        return 9
-
-    if age <= 69:
-        return 10
-
-    if age <= 74:
-        return 11
-
-    if age <= 79:
-        return 12
-
-    return 13
-
-
-# ============================================================
-# MODEL REGISTRY
-# ============================================================
-
-def get_available_models():
-
-    try:
-
-        models = list_models()
-
-        if isinstance(models, dict):
-            return list(models.keys())
-
-        if isinstance(models, list):
-            return models
-
-        return []
-
-    except Exception as error:
-
-        print(
-            "[HealthcareAI] Model registry error:",
-            error
-        )
-
-        return []
-
-
-# ============================================================
-# NORMALIZE MODEL NAME
-# ============================================================
-
-def normalize_model_name(model_name):
-
-    if not model_name:
-        return None
-
-    model_name = str(
-        model_name
-    ).strip()
-
-    if model_name in MODEL_SCHEMAS:
-        return model_name
-
-    for schema_name in MODEL_SCHEMAS:
-
-        if (
-            schema_name.lower()
-            ==
-            model_name.lower()
-        ):
-            return schema_name
-
-    for schema_name, schema in MODEL_SCHEMAS.items():
-
-        aliases = schema.get(
-            "aliases",
-            []
-        )
-
-        for alias in aliases:
-
-            if (
-                alias.lower()
-                ==
-                model_name.lower()
-            ):
-                return schema_name
-
-    return None
-
-
-# ============================================================
-# DETECT MODEL
+# MODEL DETECTION
 # ============================================================
 
 def detect_model(user_message):
@@ -477,17 +225,12 @@ def detect_model(user_message):
 
     for model_name, schema in MODEL_SCHEMAS.items():
 
-        keywords = schema.get(
+        for keyword in schema.get(
             "keywords",
             []
-        )
+        ):
 
-        for keyword in keywords:
-
-            keyword = keyword.lower().strip()
-
-            if not keyword:
-                continue
+            keyword = keyword.lower()
 
             if keyword in text:
 
@@ -499,292 +242,124 @@ def detect_model(user_message):
                 )
 
     if not matches:
+
         return None
 
     matches.sort(
-        reverse=True,
-        key=lambda item: item[0]
+        reverse=True
     )
 
     return matches[0][1]
 
 
 # ============================================================
-# DETECT PREDICTION INTENT
+# PREDICTION INTENT
 # ============================================================
 
 def is_prediction_request(user_message):
 
-    text = user_message.lower().strip()
+    text = user_message.lower()
 
     patterns = [
 
-        r"\bpredict\b",
-        r"\bprediction\b",
-        r"\bcan you predict\b",
-
-        r"\bassess\b",
-        r"\bassessment\b",
-        r"\bassess me\b",
-        r"\bassess my\b",
-
-        r"\bclassify\b",
-        r"\bclassification\b",
-
         r"\bcheck my\b",
-        r"\bcheck whether i\b",
-        r"\bcheck if i\b",
+
+        r"\bcheck.*risk\b",
 
         r"\bmy risk\b",
-        r"\brisk of\b",
-        r"\brisk for\b",
-        r"\bam i at risk\b",
-        r"\bwhat is my risk\b",
-        r"\bcalculate my risk\b",
 
-        r"\banalyze my\b",
-        r"\banalyse my\b",
-        r"\bevaluate my\b",
+        r"\bpredict\b",
 
-        r"\brun the model\b",
-        r"\brun a prediction\b",
-        r"\buse the model\b",
+        r"\bprediction\b",
+
+        r"\bassess\b",
+
+        r"\brisk estimate\b",
 
         r"\bdo i have\b",
-        r"\bcould i have\b",
-        r"\bcan you determine if i\b",
+
+        r"\bam i at risk\b",
 
         r"\bi want to check\b",
-        r"\bi want to know my\b"
-    ]
 
-    for pattern in patterns:
+        r"\bcan you check\b",
 
-        if re.search(
-            pattern,
-            text
-        ):
-            return True
+        r"\bcalculate.*risk\b"
 
-    return False
-
-
-# ============================================================
-# CANCEL REQUEST
-# ============================================================
-
-def is_cancel_request(user_message):
-
-    text = user_message.lower().strip()
-
-    cancel_phrases = [
-
-        "cancel",
-        "stop",
-        "stop assessment",
-        "cancel assessment",
-        "reset",
-        "start over",
-        "never mind",
-        "nevermind",
-        "quit assessment"
     ]
 
     return any(
-        phrase in text
-        for phrase in cancel_phrases
+        re.search(
+            pattern,
+            text
+        )
+        for pattern in patterns
     )
 
 
 # ============================================================
-# ROUTE REQUEST
+# CANCEL ASSESSMENT
 # ============================================================
 
-def route_request(user_message):
+def is_cancel_request(message):
 
-    if not is_prediction_request(
-        user_message
-    ):
+    text = message.lower().strip()
 
-        return {
-            "use_ml": False,
-            "model": None
-        }
+    cancel_words = [
 
-    detected_model = detect_model(
-        user_message
+        "cancel",
+
+        "stop",
+
+        "reset",
+
+        "start over",
+
+        "never mind",
+
+        "nevermind",
+
+        "quit"
+
+    ]
+
+    return any(
+        word in text
+        for word in cancel_words
     )
 
-    if detected_model:
-
-        return {
-            "use_ml": True,
-            "model": detected_model
-        }
-
-    available_models = get_available_models()
-
-    if not available_models:
-
-        return {
-            "use_ml": False,
-            "model": None
-        }
-
-    prompt = f"""
-The user explicitly requested a personal health prediction
-or risk assessment.
-
-USER MESSAGE:
-
-{user_message}
-
-AVAILABLE LOCAL MODELS:
-
-{json.dumps(available_models, indent=2)}
-
-Return ONLY valid JSON.
-
-If a model clearly matches:
-
-{{
-    "use_ml": true,
-    "model": "exact_model_name"
-}}
-
-Otherwise:
-
-{{
-    "use_ml": false,
-    "model": null
-}}
-
-Rules:
-
-- Use only an available model.
-- Never invent model names.
-- Do not guess if no model clearly matches.
-"""
-
-    try:
-
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0
-        )
-
-        content = (
-            response
-            .choices[0]
-            .message
-            .content
-            .strip()
-        )
-
-        result = extract_json(
-            content
-        )
-
-        if not isinstance(
-            result,
-            dict
-        ):
-            return {
-                "use_ml": False,
-                "model": None
-            }
-
-        if not result.get(
-            "use_ml"
-        ):
-            return {
-                "use_ml": False,
-                "model": None
-            }
-
-        model_name = normalize_model_name(
-            result.get("model")
-        )
-
-        if model_name:
-
-            return {
-                "use_ml": True,
-                "model": model_name
-            }
-
-    except Exception as error:
-
-        print(
-            "[HealthcareAI] Routing error:",
-            error
-        )
-
-    return {
-        "use_ml": False,
-        "model": None
-    }
-
 
 # ============================================================
-# MODEL CONFIGURATION
-# ============================================================
-
-def model_is_configured(model_name):
-
-    schema = MODEL_SCHEMAS.get(
-        model_name
-    )
-
-    if not schema:
-        return False
-
-    fields = schema.get(
-        "fields",
-        {}
-    )
-
-    return bool(fields)
-
-
-# ============================================================
-# SESSION RESET
+# RESET SESSION
 # ============================================================
 
 def reset_session():
 
+    patient_session["active"] = False
+
     patient_session["model"] = None
+
     patient_session["data"] = {}
-    patient_session["profile"] = {}
-    patient_session["current_field"] = None
-    patient_session["started"] = False
-    patient_session["original_request"] = ""
+
+    patient_session["question_index"] = 0
+
+    patient_session["questions"] = []
 
 
 # ============================================================
-# DIABETES QUESTION FLOW
+# DIABETES QUESTIONS
 # ============================================================
 
 DIABETES_QUESTIONS = [
 
     {
-        "field": "age",
-        "profile_field": "age",
+        "field": "Age",
         "question": (
-            "Sure. I can give you an AI-based diabetes risk "
-            "estimate, not a medical diagnosis. Let's start "
-            "with a few basics — how old are you?"
-        )
+            "Sure. I can give you an AI-based diabetes "
+            "risk estimate, not a medical diagnosis. "
+            "Let's start with a few basics — how old are you?"
+        ),
+        "type": "age"
     },
 
     {
@@ -792,51 +367,59 @@ DIABETES_QUESTIONS = [
         "question": (
             "Got it. What's your height and weight? "
             "For example: 177 cm, 85 kg."
-        )
+        ),
+        "type": "height_weight"
     },
 
     {
         "field": "HighBP",
         "question": (
             "Do you have high blood pressure?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "HighChol",
         "question": (
             "Do you have high cholesterol?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "CholCheck",
         "question": (
-            "Have you had your cholesterol checked in the "
-            "last 5 years?"
-        )
+            "Have you had your cholesterol checked "
+            "in the last 5 years?"
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "Smoker",
         "question": (
-            "Have you smoked at least 100 cigarettes in your lifetime?"
-        )
+            "Have you smoked at least 100 cigarettes "
+            "in your lifetime?"
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "Stroke",
         "question": (
             "Have you ever had a stroke?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "HeartDiseaseorAttack",
         "question": (
-            "Have you ever been diagnosed with coronary heart "
-            "disease or had a heart attack?"
-        )
+            "Have you ever been diagnosed with coronary "
+            "heart disease or had a heart attack?"
+        ),
+        "type": "yes_no"
     },
 
     {
@@ -844,44 +427,51 @@ DIABETES_QUESTIONS = [
         "question": (
             "Have you done any physical activity or exercise "
             "during the last 30 days?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "Fruits",
         "question": (
             "Do you usually eat fruit regularly?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "Veggies",
         "question": (
             "And do you usually eat vegetables regularly?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "HvyAlcoholConsump",
         "question": (
             "Do you consume alcohol heavily?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "AnyHealthcare",
         "question": (
-            "Do you currently have any healthcare coverage "
+            "Do you currently have healthcare coverage "
             "or health insurance?"
-        )
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "NoDocbcCost",
         "question": (
-            "During the last year, was there a time you needed "
-            "to see a doctor but couldn't because of the cost?"
-        )
+            "During the last year, was there a time you "
+            "needed to see a doctor but couldn't because "
+            "of the cost?"
+        ),
+        "type": "yes_no"
     },
 
     {
@@ -889,895 +479,730 @@ DIABETES_QUESTIONS = [
         "question": (
             "How would you rate your general health: "
             "excellent, very good, good, fair, or poor?"
-        )
+        ),
+        "type": "health_rating"
     },
 
     {
         "field": "MentHlth",
         "question": (
-            "In the last 30 days, for about how many days was "
-            "your mental health not good?"
-        )
+            "In the last 30 days, for about how many days "
+            "was your mental health not good?"
+        ),
+        "type": "days"
     },
 
     {
         "field": "PhysHlth",
         "question": (
-            "And for about how many days in the last 30 was "
-            "your physical health not good?"
-        )
+            "And for about how many days in the last 30 "
+            "was your physical health not good?"
+        ),
+        "type": "days"
     },
 
     {
         "field": "DiffWalk",
         "question": (
-            "Do you have serious difficulty walking or climbing stairs?"
-        )
+            "Do you have serious difficulty walking "
+            "or climbing stairs?"
+        ),
+        "type": "yes_no"
     },
 
     {
         "field": "Sex",
         "question": (
             "What is your sex: male or female?"
-        )
+        ),
+        "type": "sex"
     },
 
     {
         "field": "Education",
         "question": (
             "What is your highest level of education? "
-            "You can simply say something like school, "
-            "high school, college, or postgraduate."
-        )
+            "You can simply say school, high school, "
+            "college, or postgraduate."
+        ),
+        "type": "education"
     },
 
     {
         "field": "Income",
         "question": (
-            "For the final model input, I need an approximate "
-            "income category. You can share a broad category "
-            "or range — no exact amount is required."
-        )
+            "Finally, which broad income category best "
+            "describes you: low, lower-middle, middle, "
+            "upper-middle, or high?"
+        ),
+        "type": "income"
     }
+
 ]
 
 
 # ============================================================
-# GENERAL FIELD LABEL
+# YES / NO PARSER
 # ============================================================
 
-def format_field_name(model_name, field):
+def parse_yes_no(text):
 
-    schema = MODEL_SCHEMAS.get(
-        model_name,
-        {}
-    )
+    text = text.lower().strip()
 
-    fields = schema.get(
-        "fields",
-        {}
-    )
+    yes_words = [
 
-    field_info = fields.get(
-        field,
-        {}
-    )
+        "yes",
 
-    return field_info.get(
-        "label",
-        field.replace(
-            "_",
-            " "
-        ).title()
-    )
+        "yeah",
 
+        "yep",
 
-# ============================================================
-# DIABETES AGE / HEALTH PARSERS
-# ============================================================
+        "yup",
 
-def parse_general_health(value):
+        "correct",
 
-    text = normalize_text(value)
+        "sure",
 
-    mapping = {
-        "excellent": 1,
-        "very good": 2,
-        "verygood": 2,
-        "good": 3,
-        "fair": 4,
-        "poor": 5
-    }
+        "i do",
 
-    if text in mapping:
-        return mapping[text]
+        "i have",
 
-    number = extract_first_number(
-        value
-    )
+        "normal",
 
-    if number is not None and 1 <= number <= 5:
-        return int(number)
+        "okay",
 
-    return None
+        "ok",
 
+        "fine"
 
-def parse_days(value):
+    ]
 
-    number = extract_first_number(
-        value
-    )
+    no_words = [
 
-    if number is None:
-        return None
+        "no",
 
-    number = int(number)
+        "nope",
 
-    if 0 <= number <= 30:
-        return number
+        "nah",
 
-    return None
+        "never",
 
+        "i don't",
 
-def parse_education(value):
+        "i dont",
 
-    text = normalize_text(value)
+        "not"
 
-    # Dataset categories:
-    # 1 = Never attended school / kindergarten
-    # 2 = Elementary
-    # 3 = Some high school
-    # 4 = High school graduate
-    # 5 = Some college / technical school
-    # 6 = College graduate
-
-    number = extract_first_number(
-        text
-    )
-
-    if number is not None and 1 <= number <= 6:
-        return int(number)
+    ]
 
     if any(
         word in text
-        for word in [
-            "postgraduate",
-            "post graduate",
-            "master",
-            "bachelor",
-            "graduate",
-            "college degree",
-            "university degree"
-        ]
+        for word in yes_words
     ):
-        return 6
 
-    if any(
-        word in text
-        for word in [
-            "college",
-            "university",
-            "technical",
-            "diploma"
-        ]
-    ):
-        return 5
-
-    if "high school" in text:
-        return 4
-
-    if "secondary" in text:
-        return 4
-
-    if "school" in text:
-        return 3
-
-    return None
-
-
-def parse_income(value):
-
-    text = normalize_text(value)
-
-    number = extract_first_number(
-        text
-    )
-
-    if number is not None and 1 <= number <= 8:
-        return int(number)
-
-    # Because the original dataset uses US BRFSS income
-    # categories, direct conversion from Indian income should
-    # not pretend to be exact.
-
-    if any(
-        word in text
-        for word in [
-            "very low",
-            "very poor",
-            "lowest"
-        ]
-    ):
         return 1
 
     if any(
         word in text
-        for word in [
-            "low",
-            "lower"
-        ]
+        for word in no_words
     ):
-        return 3
 
-    if any(
-        word in text
-        for word in [
-            "middle",
-            "average",
-            "medium"
-        ]
-    ):
-        return 5
-
-    if any(
-        word in text
-        for word in [
-            "high",
-            "upper middle",
-            "upper-middle"
-        ]
-    ):
-        return 7
-
-    if any(
-        word in text
-        for word in [
-            "very high",
-            "rich",
-            "highest"
-        ]
-    ):
-        return 8
+        return 0
 
     return None
 
 
 # ============================================================
-# GET NEXT DIABETES QUESTION
+# PARSE AGE
 # ============================================================
 
-def get_next_diabetes_question():
-
-    data = patient_session["data"]
-
-    for item in DIABETES_QUESTIONS:
-
-        field = item["field"]
-
-        if field == "age":
-
-            if (
-                "age"
-                not in patient_session["profile"]
-            ):
-                return item
-
-            continue
-
-        if field == "height_weight":
-
-            if (
-                "BMI"
-                not in data
-            ):
-                return item
-
-            continue
-
-        if field not in data:
-            return item
-
-    return None
-
-
-# ============================================================
-# SAVE DIABETES ANSWER
-# ============================================================
-
-def process_diabetes_answer(
-    user_message
-):
-
-    question = get_next_diabetes_question()
-
-    if not question:
-        return True, None
-
-    field = question["field"]
-
-    # --------------------------------------------------------
-    # AGE
-    # --------------------------------------------------------
-
-    if field == "age":
-
-        age = extract_first_number(
-            user_message
-        )
-
-        if age is None or age < 18:
-
-            return False, (
-                "Please tell me your age in years. "
-                "For example: 20."
-            )
-
-        patient_session["profile"]["age"] = age
-
-        age_category = age_to_brfss_category(
-            age
-        )
-
-        if age_category is None:
-
-            return False, (
-                "Please enter a valid age in years."
-            )
-
-        patient_session["data"]["Age"] = age_category
-
-        return True, None
-
-    # --------------------------------------------------------
-    # HEIGHT + WEIGHT
-    # --------------------------------------------------------
-
-    if field == "height_weight":
-
-        height, weight = extract_height_weight(
-            user_message
-        )
-
-        if height is None or weight is None:
-
-            return False, (
-                "I need both your height and weight. "
-                "For example: 177 cm, 85 kg."
-            )
-
-        if (
-            height < 100
-            or height > 250
-            or weight < 20
-            or weight > 400
-        ):
-
-            return False, (
-                "That doesn't look like a valid height or weight. "
-                "Please try again, for example: 177 cm, 85 kg."
-            )
-
-        bmi = calculate_bmi(
-            height,
-            weight
-        )
-
-        if bmi is None:
-
-            return False, (
-                "I couldn't calculate your BMI. "
-                "Please try again with your height and weight."
-            )
-
-        patient_session["profile"]["height_cm"] = height
-        patient_session["profile"]["weight_kg"] = weight
-
-        patient_session["data"]["BMI"] = bmi
-
-        return True, (
-            f"Got it. Your BMI is approximately {bmi}."
-        )
-
-    # --------------------------------------------------------
-    # YES / NO FIELDS
-    # --------------------------------------------------------
-
-    yes_no_fields = [
-
-        "HighBP",
-        "HighChol",
-        "CholCheck",
-        "Smoker",
-        "Stroke",
-        "HeartDiseaseorAttack",
-        "PhysActivity",
-        "Fruits",
-        "Veggies",
-        "HvyAlcoholConsump",
-        "AnyHealthcare",
-        "NoDocbcCost",
-        "DiffWalk"
-    ]
-
-    if field in yes_no_fields:
-
-        value = parse_yes_no(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "Just answer yes or no."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    # --------------------------------------------------------
-    # GENERAL HEALTH
-    # --------------------------------------------------------
-
-    if field == "GenHlth":
-
-        value = parse_general_health(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "You can answer with: excellent, very good, "
-                "good, fair, or poor."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    # --------------------------------------------------------
-    # DAYS
-    # --------------------------------------------------------
-
-    if field in [
-        "MentHlth",
-        "PhysHlth"
-    ]:
-
-        value = parse_days(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "Please enter a number between 0 and 30."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    # --------------------------------------------------------
-    # SEX
-    # --------------------------------------------------------
-
-    if field == "Sex":
-
-        value = parse_sex(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "Please answer male or female."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    # --------------------------------------------------------
-    # EDUCATION
-    # --------------------------------------------------------
-
-    if field == "Education":
-
-        value = parse_education(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "Could you describe your highest education level? "
-                "For example: high school, college, "
-                "or postgraduate."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    # --------------------------------------------------------
-    # INCOME
-    # --------------------------------------------------------
-
-    if field == "Income":
-
-        value = parse_income(
-            user_message
-        )
-
-        if value is None:
-
-            return False, (
-                "You can give a broad category such as "
-                "low, middle, high, or very high."
-            )
-
-        patient_session["data"][field] = value
-
-        return True, None
-
-    return False, (
-        "I couldn't understand that answer. "
-        "Could you try again?"
+def parse_age(text):
+
+    match = re.search(
+        r"\b(\d{1,3})\b",
+        text
     )
 
+    if not match:
 
-# ============================================================
-# GENERIC INFORMATION EXTRACTION
-# ============================================================
-
-def extract_information(
-    user_message,
-    model_name
-):
-
-    schema = MODEL_SCHEMAS.get(
-        model_name
-    )
-
-    if not schema:
-        return {}
-
-    fields = schema.get(
-        "fields",
-        {}
-    )
-
-    if not fields:
-        return {}
-
-    prompt = f"""
-Extract only patient information explicitly provided by the user.
-
-USER MESSAGE:
-
-{user_message}
-
-MODEL:
-
-{model_name}
-
-REQUIRED FIELD SCHEMA:
-
-{json.dumps(fields, indent=2)}
-
-Return ONLY valid JSON:
-
-{{
-    "provided_data": {{}}
-}}
-
-Rules:
-
-1. Use only exact field names from the schema.
-2. Never guess.
-3. Never invent values.
-4. Extract only explicitly provided values.
-5. Convert numeric values where appropriate.
-6. Do not include missing fields.
-"""
-
-    try:
-
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0
-        )
-
-        content = (
-            response
-            .choices[0]
-            .message
-            .content
-            .strip()
-        )
-
-        result = extract_json(
-            content
-        )
-
-        if not isinstance(
-            result,
-            dict
-        ):
-            return {}
-
-        data = result.get(
-            "provided_data",
-            {}
-        )
-
-        if isinstance(
-            data,
-            dict
-        ):
-            return data
-
-    except Exception as error:
-
-        print(
-            "[HealthcareAI] Extraction error:",
-            error
-        )
-
-    return {}
-
-
-# ============================================================
-# MERGE PATIENT DATA
-# ============================================================
-
-def merge_patient_data(new_data):
-
-    if not isinstance(
-        new_data,
-        dict
-    ):
-        return
-
-    patient_session["data"].update(
-        new_data
-    )
-
-
-# ============================================================
-# GENERIC MISSING FIELDS
-# ============================================================
-
-def get_missing_fields(model_name):
-
-    schema = MODEL_SCHEMAS.get(
-        model_name
-    )
-
-    if not schema:
-        return []
-
-    fields = schema.get(
-        "fields",
-        {}
-    )
-
-    current_data = patient_session[
-        "data"
-    ]
-
-    return [
-
-        field
-        for field in fields
-
-        if field not in current_data
-    ]
-
-
-# ============================================================
-# GENERIC NEXT QUESTION
-# ============================================================
-
-def ask_next_generic_question(
-    model_name
-):
-
-    missing = get_missing_fields(
-        model_name
-    )
-
-    if not missing:
         return None
 
-    field = missing[0]
+    age = int(
+        match.group(1)
+    )
+
+    if age < 1 or age > 120:
+
+        return None
+
+    return age
+
+
+# ============================================================
+# CONVERT REAL AGE TO DATASET AGE CATEGORY
+# ============================================================
+
+def convert_age_to_category(age):
+
+    categories = [
+
+        (18, 24, 1),
+
+        (25, 29, 2),
+
+        (30, 34, 3),
+
+        (35, 39, 4),
+
+        (40, 44, 5),
+
+        (45, 49, 6),
+
+        (50, 54, 7),
+
+        (55, 59, 8),
+
+        (60, 64, 9),
+
+        (65, 69, 10),
+
+        (70, 74, 11),
+
+        (75, 79, 12),
+
+        (80, 120, 13)
+
+    ]
+
+    for minimum, maximum, category in categories:
+
+        if minimum <= age <= maximum:
+
+            return category
+
+    return 1
+
+
+# ============================================================
+# PARSE HEIGHT / WEIGHT AND CALCULATE BMI
+# ============================================================
+
+def parse_height_weight(text):
+
+    text = text.lower()
+
+    numbers = re.findall(
+        r"\d+(?:\.\d+)?",
+        text
+    )
+
+    if len(numbers) < 2:
+
+        return None
+
+    height = float(
+        numbers[0]
+    )
+
+    weight = float(
+        numbers[1]
+    )
+
+    # Convert meters to centimeters if needed
+    if height < 3:
+
+        height = height * 100
+
+    if height < 50 or height > 250:
+
+        return None
+
+    if weight < 20 or weight > 400:
+
+        return None
+
+    height_m = height / 100
+
+    bmi = weight / (
+        height_m ** 2
+    )
+
+    return {
+
+        "height": round(height, 2),
+
+        "weight": round(weight, 2),
+
+        "BMI": round(bmi, 2)
+
+    }
+
+
+# ============================================================
+# GENERAL HEALTH PARSER
+# ============================================================
+
+def parse_health_rating(text):
+
+    text = text.lower()
+
+    mapping = {
+
+        "excellent": 1,
+
+        "very good": 2,
+
+        "good": 3,
+
+        "fair": 4,
+
+        "poor": 5
+
+    }
+
+    for word, value in mapping.items():
+
+        if word in text:
+
+            return value
+
+    return None
+
+
+# ============================================================
+# DAYS PARSER
+# ============================================================
+
+def parse_days(text):
+
+    match = re.search(
+        r"\b(\d{1,2})\b",
+        text
+    )
+
+    if not match:
+
+        return None
+
+    days = int(
+        match.group(1)
+    )
+
+    if days < 0 or days > 30:
+
+        return None
+
+    return days
+
+
+# ============================================================
+# SEX PARSER
+# ============================================================
+
+def parse_sex(text):
+
+    text = text.lower().strip()
+
+    if (
+        "male" in text
+        or text == "m"
+        or text == "make"
+    ):
+
+        return 1
+
+    if (
+        "female" in text
+        or text == "f"
+    ):
+
+        return 0
+
+    return None
+
+
+# ============================================================
+# EDUCATION PARSER
+# ============================================================
+
+def parse_education(text):
+
+    text = text.lower()
+
+    if (
+        "college" in text
+        or "university" in text
+        or "bachelor" in text
+    ):
+
+        return 5
+
+    if (
+        "postgraduate" in text
+        or "master" in text
+        or "phd" in text
+    ):
+
+        return 6
+
+    if (
+        "high school" in text
+        or "12" in text
+    ):
+
+        return 4
+
+    if "school" in text:
+
+        return 3
+
+    return None
+
+
+# ============================================================
+# INCOME PARSER
+# ============================================================
+
+def parse_income(text):
+
+    text = text.lower()
+
+    mapping = {
+
+        "low": 2,
+
+        "lower-middle": 3,
+
+        "lower middle": 3,
+
+        "middle": 5,
+
+        "upper-middle": 6,
+
+        "upper middle": 6,
+
+        "high": 7,
+
+        "very high": 8
+
+    }
+
+    for key, value in mapping.items():
+
+        if key in text:
+
+            return value
+
+    return None
+
+
+# ============================================================
+# PARSE CURRENT ANSWER
+# ============================================================
+
+def parse_answer(question, user_message):
+
+    question_type = question["type"]
+
+    if question_type == "age":
+
+        return parse_age(
+            user_message
+        )
+
+    if question_type == "height_weight":
+
+        return parse_height_weight(
+            user_message
+        )
+
+    if question_type == "yes_no":
+
+        return parse_yes_no(
+            user_message
+        )
+
+    if question_type == "health_rating":
+
+        return parse_health_rating(
+            user_message
+        )
+
+    if question_type == "days":
+
+        return parse_days(
+            user_message
+        )
+
+    if question_type == "sex":
+
+        return parse_sex(
+            user_message
+        )
+
+    if question_type == "education":
+
+        return parse_education(
+            user_message
+        )
+
+    if question_type == "income":
+
+        return parse_income(
+            user_message
+        )
+
+    return None
+
+
+# ============================================================
+# START ASSESSMENT
+# ============================================================
+
+def start_assessment(model_name):
+
+    reset_session()
+
+    patient_session["active"] = True
+
+    patient_session["model"] = model_name
+
+    if model_name == "diabetes_binary":
+
+        patient_session[
+            "questions"
+        ] = DIABETES_QUESTIONS.copy()
+
+    else:
+
+        return (
+            f"The local model '{model_name}' is available, "
+            "but its conversational assessment flow has not "
+            "been configured yet."
+        )
 
     patient_session[
-        "current_field"
-    ] = field
+        "question_index"
+    ] = 0
 
-    label = format_field_name(
-        model_name,
-        field
-    )
-
-    return (
-        f"Okay. Next, I need your {label}. "
-        f"What would you enter for that?"
-    )
+    return patient_session[
+        "questions"
+    ][0]["question"]
 
 
 # ============================================================
-# EXPLAIN PREDICTION WITH GROQ
+# RUN LOCAL PREDICTION
 # ============================================================
 
-def explain_prediction(
-    result,
-    model_name
-):
+def run_prediction(model_name, patient_data):
 
-    description = MODEL_SCHEMAS.get(
-        model_name,
-        {}
-    ).get(
-        "description",
+    model = load_local_model(
         model_name
     )
 
-    prompt = f"""
-A local machine-learning model has completed a health assessment.
+    # --------------------------------------------------------
+    # REMOVE NON-MODEL VALUES
+    # --------------------------------------------------------
 
-ASSESSMENT:
+    clean_data = {}
 
-{description}
+    for key, value in patient_data.items():
 
-LOCAL MODEL RESULT:
+        if key in [
 
-{json.dumps(result, indent=2)}
+            "height",
 
-Write a natural, clear response for the user.
+            "weight"
 
-Rules:
+        ]:
 
-- Do not change the prediction.
-- Do not invent medical findings.
-- Call this an AI or machine-learning model estimate.
-- Never call it a confirmed diagnosis.
-- Mention probability only if it exists in the result.
-- Explain the result simply.
-- Keep the response concise.
-- Give sensible next steps if appropriate.
-"""
+            continue
 
-    try:
+        clean_data[key] = value
 
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.2
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # READ THE EXACT FEATURE ORDER USED DURING TRAINING
+    #
+    # This prevents:
+    #
+    # "Feature names should match those passed during fit"
+    # --------------------------------------------------------
+
+    expected_features = getattr(
+        model,
+        "feature_names_in_",
+        None
+    )
+
+    if expected_features is not None:
+
+        expected_features = list(
+            expected_features
         )
 
-        return (
-            response
-            .choices[0]
-            .message
-            .content
-            .strip()
+        missing_features = [
+
+            feature
+
+            for feature in expected_features
+
+            if feature not in clean_data
+
+        ]
+
+        if missing_features:
+
+            raise ValueError(
+                "Missing required model features: "
+                + ", ".join(
+                    missing_features
+                )
+            )
+
+        ordered_data = {
+
+            feature: clean_data[feature]
+
+            for feature in expected_features
+
+        }
+
+        input_df = pd.DataFrame(
+            [ordered_data],
+            columns=expected_features
         )
 
-    except Exception as error:
+    else:
 
-        print(
-            "[HealthcareAI] Explanation error:",
-            error
+        input_df = pd.DataFrame(
+            [clean_data]
         )
 
-        return (
-            "The local machine-learning model completed "
-            "the assessment. This is an AI-based estimate, "
-            "not a medical diagnosis.\n\n"
-            f"Model result: {result}"
+    # --------------------------------------------------------
+    # PREDICTION
+    # --------------------------------------------------------
+
+    prediction = model.predict(
+        input_df
+    )[0]
+
+    probability = None
+
+    if hasattr(
+        model,
+        "predict_proba"
+    ):
+
+        probabilities = model.predict_proba(
+            input_df
+        )[0]
+
+        if len(probabilities) > 1:
+
+            probability = float(
+                probabilities[1]
+            )
+
+    return {
+
+        "prediction": int(
+            prediction
+        ),
+
+        "probability": probability,
+
+        "features": list(
+            input_df.columns
         )
+
+    }
 
 
 # ============================================================
-# GENERAL HEALTH QUESTION
+# COMPLETE ASSESSMENT
 # ============================================================
 
-def answer_general_question(
-    user_message
-):
-
-    try:
-
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": user_message
-                }
-            ],
-            temperature=0.2
-        )
-
-        return (
-            response
-            .choices[0]
-            .message
-            .content
-            .strip()
-        )
-
-    except Exception as error:
-
-        print(
-            "[HealthcareAI] Groq error:",
-            error
-        )
-
-        return (
-            "I'm having trouble connecting to the health "
-            "assistant right now. Please try again."
-        )
-
-
-# ============================================================
-# RUN LOCAL MODEL
-# ============================================================
-
-def run_current_assessment():
+def complete_assessment():
 
     model_name = patient_session[
         "model"
     ]
 
-    print(
-        "\n[HealthcareAI] All required inputs received."
-    )
-
-    print(
-        "[HealthcareAI] Running local ML model..."
-    )
-
-    print(
-        json.dumps(
-            patient_session["data"],
-            indent=2
-        )
-    )
+    data = patient_session[
+        "data"
+    ].copy()
 
     try:
 
-        result = predict(
-            model_name,
-            patient_session["data"]
+        print(
+            "\n[HealthcareAI] Running local ML model..."
         )
+
+        result = run_prediction(
+            model_name,
+            data
+        )
+
+        reset_session()
+
+        prediction = result[
+            "prediction"
+        ]
+
+        probability = result[
+            "probability"
+        ]
+
+        if probability is not None:
+
+            probability_percent = round(
+                probability * 100,
+                1
+            )
+
+        else:
+
+            probability_percent = None
+
+        # ----------------------------------------------------
+        # HUMAN RESPONSE
+        # ----------------------------------------------------
+
+        if prediction == 1:
+
+            response = (
+                "Based on the information you provided, "
+                "the model classified your profile as having "
+                "a higher estimated diabetes risk."
+            )
+
+        else:
+
+            response = (
+                "Based on the information you provided, "
+                "the model classified your profile as having "
+                "a lower estimated diabetes risk."
+            )
+
+        if probability_percent is not None:
+
+            response += (
+                f"\n\nThe model's estimated probability "
+                f"for the positive class was "
+                f"approximately {probability_percent}%."
+            )
+
+        response += (
+
+            "\n\nThis is an AI-based model estimate, "
+            "not a medical diagnosis. A proper medical "
+            "evaluation may include blood glucose or HbA1c "
+            "testing."
+
+        )
+
+        return response
 
     except Exception as error:
 
@@ -1789,241 +1214,234 @@ def run_current_assessment():
         reset_session()
 
         return (
-            "I couldn't run the local model with those inputs. "
-            "The model or input schema may need adjustment."
+            "I couldn't complete the local model assessment "
+            "because of a backend input issue. "
+            "The assessment has been reset."
         )
 
-    answer = explain_prediction(
-        result,
-        model_name
-    )
-
-    reset_session()
-
-    return answer
-
 
 # ============================================================
-# START DIABETES ASSESSMENT
+# HANDLE ACTIVE ASSESSMENT
 # ============================================================
 
-def start_diabetes_assessment():
+def handle_assessment(user_message):
 
-    patient_session[
-        "current_field"
-    ] = "age"
-
-    return (
-        "Sure. I can give you an AI-based diabetes risk "
-        "estimate, not a medical diagnosis. Let's start "
-        "with a few basics — how old are you?"
-    )
-
-
-# ============================================================
-# CONTINUE DIABETES ASSESSMENT
-# ============================================================
-
-def continue_diabetes_assessment(
-    user_message
-):
-
-    success, response = process_diabetes_answer(
+    if is_cancel_request(
         user_message
-    )
-
-    if not success:
-        return response
-
-    next_question = get_next_diabetes_question()
-
-    if next_question:
-
-        question = next_question[
-            "question"
-        ]
-
-        # Add BMI acknowledgement naturally.
-        if (
-            "BMI"
-            in patient_session["data"]
-            and next_question["field"] == "HighBP"
-        ):
-
-            bmi = patient_session["data"]["BMI"]
-
-            return (
-                f"Got it. Your BMI is approximately {bmi}. "
-                f"{question}"
-            )
-
-        return question
-
-    return run_current_assessment()
-
-
-# ============================================================
-# MAIN HEALTHCARE AI
-# ============================================================
-
-def ask_healthcare_ai(
-    user_message
-):
-
-    user_message = str(
-        user_message
-    ).strip()
-
-    if not user_message:
-
-        return (
-            "Ask me a health question or tell me what "
-            "you'd like to assess."
-        )
-
-    # --------------------------------------------------------
-    # CANCEL ACTIVE ASSESSMENT
-    # --------------------------------------------------------
-
-    if (
-        patient_session["model"]
-        and is_cancel_request(user_message)
     ):
 
         reset_session()
 
         return (
-            "No problem — I've cancelled that assessment. "
-            "You can start a new one anytime."
+            "No problem — I've cancelled the assessment."
         )
 
-    # --------------------------------------------------------
-    # CONTINUE ACTIVE ASSESSMENT
-    # --------------------------------------------------------
+    index = patient_session[
+        "question_index"
+    ]
 
-    if patient_session["model"]:
+    questions = patient_session[
+        "questions"
+    ]
 
-        model_name = patient_session[
-            "model"
-        ]
+    if index >= len(
+        questions
+    ):
 
-        if model_name == "diabetes_binary":
+        return complete_assessment()
 
-            return continue_diabetes_assessment(
-                user_message
-            )
+    current_question = questions[
+        index
+    ]
 
-        new_data = extract_information(
-            user_message,
-            model_name
-        )
-
-        merge_patient_data(
-            new_data
-        )
-
-        missing = get_missing_fields(
-            model_name
-        )
-
-        if missing:
-
-            return ask_next_generic_question(
-                model_name
-            )
-
-        return run_current_assessment()
-
-    # --------------------------------------------------------
-    # NEW REQUEST
-    # --------------------------------------------------------
-
-    routing = route_request(
+    value = parse_answer(
+        current_question,
         user_message
     )
 
-    # General health question
-    if not routing.get(
-        "use_ml"
+    if value is None:
+
+        return (
+            "I didn't quite catch that. "
+            + current_question["question"]
+        )
+
+    field = current_question[
+        "field"
+    ]
+
+    # --------------------------------------------------------
+    # HEIGHT + WEIGHT
+    # --------------------------------------------------------
+
+    if field == "height_weight":
+
+        patient_session[
+            "data"
+        ].update(
+            value
+        )
+
+    # --------------------------------------------------------
+    # AGE
+    # --------------------------------------------------------
+
+    elif field == "Age":
+
+        patient_session[
+            "data"
+        ]["Age"] = convert_age_to_category(
+            value
+        )
+
+        patient_session[
+            "data"
+        ]["actual_age"] = value
+
+    # --------------------------------------------------------
+    # NORMAL FIELD
+    # --------------------------------------------------------
+
+    else:
+
+        patient_session[
+            "data"
+        ][field] = value
+
+    # --------------------------------------------------------
+    # MOVE TO NEXT QUESTION
+    # --------------------------------------------------------
+
+    patient_session[
+        "question_index"
+    ] += 1
+
+    next_index = patient_session[
+        "question_index"
+    ]
+
+    if next_index >= len(
+        questions
     ):
 
-        return answer_general_question(
+        return complete_assessment()
+
+    # --------------------------------------------------------
+    # BMI RESPONSE
+    # --------------------------------------------------------
+
+    if field == "height_weight":
+
+        bmi = patient_session[
+            "data"
+        ]["BMI"]
+
+        next_question = questions[
+            next_index
+        ]["question"]
+
+        return (
+            f"Got it. Your BMI is approximately {bmi}. "
+            f"{next_question}"
+        )
+
+    return questions[
+        next_index
+    ]["question"]
+
+
+# ============================================================
+# GROQ RESPONSE
+# ============================================================
+
+def ask_groq(user_message):
+
+    completion = client.chat.completions.create(
+
+        model=GROQ_MODEL,
+
+        messages=[
+
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+
+            {
+                "role": "user",
+                "content": user_message
+            }
+
+        ],
+
+        temperature=0.4,
+
+        max_tokens=800
+
+    )
+
+    return completion.choices[
+        0
+    ].message.content
+
+
+# ============================================================
+# MAIN CHAT ROUTER
+# ============================================================
+
+def healthcare_ai(user_message):
+
+    user_message = user_message.strip()
+
+    if not user_message:
+
+        return (
+            "Ask me anything about health, "
+            "or tell me if you'd like to check a health risk."
+        )
+
+    # --------------------------------------------------------
+    # ACTIVE ASSESSMENT
+    # --------------------------------------------------------
+
+    if patient_session[
+        "active"
+    ]:
+
+        return handle_assessment(
             user_message
         )
 
-    model_name = normalize_model_name(
-        routing.get("model")
-    )
-
-    if not model_name:
-
-        return (
-            "I couldn't match that request to one of my "
-            "available local health assessments."
-        )
-
     # --------------------------------------------------------
-    # CHECK MODEL SCHEMA
+    # NEW ML REQUEST
     # --------------------------------------------------------
 
-    if not model_is_configured(
-        model_name
+    if is_prediction_request(
+        user_message
     ):
 
-        return (
-            f"I have a local model for "
-            f"{MODEL_SCHEMAS[model_name]['description']}, "
-            f"but its input flow hasn't been configured yet."
+        model_name = detect_model(
+            user_message
         )
 
+        if model_name:
+
+            print(
+                f"\n[HealthcareAI] Starting "
+                f"{model_name} assessment..."
+            )
+
+            return start_assessment(
+                model_name
+            )
+
     # --------------------------------------------------------
-    # START SESSION
+    # GENERAL GROQ RESPONSE
     # --------------------------------------------------------
 
-    patient_session["model"] = model_name
-    patient_session["data"] = {}
-    patient_session["profile"] = {}
-    patient_session["current_field"] = None
-    patient_session["started"] = True
-    patient_session["original_request"] = user_message
-
-    print(
-        f"\n[HealthcareAI] Starting "
-        f"{model_name} assessment..."
+    return ask_groq(
+        user_message
     )
-
-    # --------------------------------------------------------
-    # NATURAL DIABETES FLOW
-    # --------------------------------------------------------
-
-    if model_name == "diabetes_binary":
-
-        return start_diabetes_assessment()
-
-    # --------------------------------------------------------
-    # GENERIC FLOW FOR OTHER MODELS
-    # --------------------------------------------------------
-
-    new_data = extract_information(
-        user_message,
-        model_name
-    )
-
-    merge_patient_data(
-        new_data
-    )
-
-    missing = get_missing_fields(
-        model_name
-    )
-
-    if missing:
-
-        return ask_next_generic_question(
-            model_name
-        )
-
-    return run_current_assessment()
 
 
 # ============================================================
@@ -2037,7 +1455,7 @@ def main():
     )
 
     print(
-        f"Model: {MODEL}"
+        f"Model: {GROQ_MODEL}"
     )
 
     print(
@@ -2065,13 +1483,18 @@ def main():
             EOFError
         ):
 
-            print("\nHealthcareAI stopped.")
+            print(
+                "\nHealthcareAI stopped."
+            )
 
             break
 
         if user_message.lower() in [
+
             "exit",
+
             "quit"
+
         ]:
 
             print(
@@ -2080,7 +1503,7 @@ def main():
 
             break
 
-        answer = ask_healthcare_ai(
+        response = healthcare_ai(
             user_message
         )
 
@@ -2089,13 +1512,14 @@ def main():
         )
 
         print(
-            answer
+            response
         )
 
 
 # ============================================================
-# ENTRY POINT
+# RUN
 # ============================================================
 
 if __name__ == "__main__":
+
     main()
