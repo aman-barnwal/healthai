@@ -46,3 +46,20 @@ backend/models/*.pkl
 *.pt
 *.pth
 *.zip
+
+# Large ML models and generated artifacts
+backend/models/*.pkl
+backend/models/*.joblib
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# Archives
+*.zip
+*.tar
+*.gz
