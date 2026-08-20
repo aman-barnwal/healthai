@@ -1308,9 +1308,7 @@ def handle_assessment(user_message):
             "data"
         ][field] = value
 
-    # --------------------------------------------------------
     # MOVE TO NEXT QUESTION
-    # --------------------------------------------------------
 
     patient_session[
         "question_index"
@@ -1326,9 +1324,7 @@ def handle_assessment(user_message):
 
         return complete_assessment()
 
-    # --------------------------------------------------------
     # BMI RESPONSE
-    # --------------------------------------------------------
 
     if field == "height_weight":
 
@@ -1350,9 +1346,7 @@ def handle_assessment(user_message):
     ]["question"]
 
 
-# ============================================================
 # GROQ RESPONSE
-# ============================================================
 
 def ask_groq(user_message):
 
@@ -1385,9 +1379,7 @@ def ask_groq(user_message):
     ].message.content
 
 
-# ============================================================
 # MAIN CHAT ROUTER
-# ============================================================
 
 def healthcare_ai(user_message):
 
@@ -1400,9 +1392,7 @@ def healthcare_ai(user_message):
             "or tell me if you'd like to check a health risk."
         )
 
-    # --------------------------------------------------------
     # ACTIVE ASSESSMENT
-    # --------------------------------------------------------
 
     if patient_session[
         "active"
@@ -1412,9 +1402,7 @@ def healthcare_ai(user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # NEW ML REQUEST
-    # --------------------------------------------------------
 
     if is_prediction_request(
         user_message
@@ -1435,18 +1423,14 @@ def healthcare_ai(user_message):
                 model_name
             )
 
-    # --------------------------------------------------------
     # GENERAL GROQ RESPONSE
-    # --------------------------------------------------------
 
     return ask_groq(
         user_message
     )
 
 
-# ============================================================
 # CLI
-# ============================================================
 
 def main():
 
@@ -1514,22 +1498,14 @@ def main():
         print(
             response
         )
-# ============================================================
 # API CHAT ENTRY POINT
-# ============================================================
 
 def chat_with_healthcare_ai(user_message):
     """
-    Main entry point used by the Flask API.
+    Main entry point for the Flask API.
 
-    This connects:
-    Frontend
-        ↓
-    Flask /api/chat
-        ↓
-    HealthcareAI hybrid engine
-        ↓
-    Local ML models + Groq
+    The API calls this function, which passes the user's
+    message into the HealthcareAI hybrid engine.
     """
 
     if not user_message or not user_message.strip():
@@ -1537,14 +1513,9 @@ def chat_with_healthcare_ai(user_message):
 
     user_message = user_message.strip()
 
-    # Use the existing HealthcareAI conversation handler.
-    # If your assistant.py already has a main function that
-    # processes messages, route through it here.
-    return handle_user_message(user_message)
+    return healthcare_ai(user_message)
 
-# ============================================================
 # RUN
-# ============================================================
 
 if __name__ == "__main__":
 
