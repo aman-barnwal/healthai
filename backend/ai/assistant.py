@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -14,14 +15,12 @@ from backend.ml.predict_all import predict, list_models
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
 ENV_PATH = PROJECT_ROOT / ".env"
 
 load_dotenv(
     dotenv_path=ENV_PATH,
     override=True
 )
-
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -30,15 +29,12 @@ GROQ_MODEL = os.getenv(
     "openai/gpt-oss-120b"
 )
 
-
 if not GROQ_API_KEY:
     raise RuntimeError(
         f"GROQ_API_KEY not found in {ENV_PATH}"
     )
 
-
 MODEL = GROQ_MODEL
-
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
@@ -53,10 +49,10 @@ client = OpenAI(
 SYSTEM_PROMPT = """
 You are HealthcareAI.
 
-You provide concise health information and machine-learning
-decision support.
+You provide concise, helpful health information and support
+local machine-learning assessments.
 
-Rules:
+Important rules:
 
 - Never invent patient information.
 - Never invent medical history.
@@ -82,6 +78,59 @@ patient_session = {
     "model": None,
     "data": {}
 }
+
+
+# ============================================================
+# JSON HELPERS
+# ============================================================
+
+def extract_json(text):
+    """
+    Extract JSON safely from an LLM response.
+    Handles plain JSON and Markdown code blocks.
+    """
+
+    if not text:
+        return None
+
+    text = text.strip()
+
+    text = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r"\s*```$",
+        "",
+        text
+    )
+
+    text = text.strip()
+
+    try:
+        return json.loads(text)
+
+    except json.JSONDecodeError:
+        pass
+
+    # Try to locate a JSON object inside extra text.
+    match = re.search(
+        r"\{.*\}",
+        text,
+        flags=re.DOTALL
+    )
+
+    if match:
+        try:
+            return json.loads(match.group())
+
+        except json.JSONDecodeError:
+            return None
+
+    return None
 
 
 # ============================================================
@@ -120,9 +169,17 @@ def normalize_model_name(model_name):
     if not model_name:
         return None
 
+    model_name = str(model_name).strip()
+
     # Exact schema match
     if model_name in MODEL_SCHEMAS:
         return model_name
+
+    # Case-insensitive schema match
+    for schema_name in MODEL_SCHEMAS:
+
+        if schema_name.lower() == model_name.lower():
+            return schema_name
 
     # Check aliases
     for schema_name, schema in MODEL_SCHEMAS.items():
@@ -132,20 +189,28 @@ def normalize_model_name(model_name):
             []
         )
 
-        if model_name in aliases:
-            return schema_name
+        for alias in aliases:
+
+            if alias.lower() == model_name.lower():
+                return schema_name
 
     return None
 
 
 # ============================================================
-# DETECT MODEL LOCALLY
+# DETECT MODEL BY DISEASE / MODEL KEYWORDS
 # ============================================================
 
 def detect_model(user_message):
+    """
+    Detect which model the user is referring to.
+
+    IMPORTANT:
+    This function only identifies a possible model.
+    It does NOT decide whether ML should be used.
+    """
 
     text = user_message.lower()
-
     matches = []
 
     for model_name, schema in MODEL_SCHEMAS.items():
@@ -157,7 +222,12 @@ def detect_model(user_message):
 
         for keyword in keywords:
 
-            if keyword.lower() in text:
+            keyword = keyword.lower().strip()
+
+            if not keyword:
+                continue
+
+            if keyword in text:
 
                 matches.append(
                     (
@@ -169,7 +239,7 @@ def detect_model(user_message):
     if not matches:
         return None
 
-    # Longest matching keyword wins.
+    # More specific / longer keyword wins.
     matches.sort(
         reverse=True,
         key=lambda item: item[0]
@@ -179,13 +249,133 @@ def detect_model(user_message):
 
 
 # ============================================================
+# DETECT EXPLICIT ML PREDICTION INTENT
+# ============================================================
+
+def is_prediction_request(user_message):
+    """
+    Returns True only when the user is explicitly asking
+    for a personal prediction, assessment, classification,
+    or analysis using their own information.
+
+    A disease name alone is NOT enough.
+    """
+
+    text = user_message.lower().strip()
+
+    explicit_patterns = [
+
+        # Prediction
+        r"\bpredict\b",
+        r"\bprediction\b",
+        r"\bcan you predict\b",
+
+        # Assessment
+        r"\bassessment\b",
+        r"\bassess me\b",
+        r"\bassess my\b",
+        r"\brun an assessment\b",
+
+        # Classification
+        r"\bclassify\b",
+        r"\bclassification\b",
+
+        # Personal checking
+        r"\bcheck my\b",
+        r"\bcheck whether i\b",
+        r"\bcheck if i\b",
+
+        # Personal risk
+        r"\bmy risk\b",
+        r"\bam i at risk\b",
+        r"\bwhat is my risk\b",
+        r"\bcalculate my risk\b",
+
+        # Personal analysis
+        r"\banalyze my\b",
+        r"\banalyse my\b",
+        r"\bevaluate my\b",
+        r"\buse my data\b",
+        r"\buse my health data\b",
+        r"\buse my values\b",
+
+        # Model usage
+        r"\brun the model\b",
+        r"\brun a prediction\b",
+        r"\buse the model\b",
+
+        # Direct personal questions
+        r"\bdo i have\b",
+        r"\bcould i have\b",
+        r"\bcan you determine if i\b",
+    ]
+
+    for pattern in explicit_patterns:
+
+        if re.search(
+            pattern,
+            text
+        ):
+            return True
+
+    return False
+
+
+# ============================================================
+# DETECT ASSESSMENT CANCELLATION
+# ============================================================
+
+def is_cancel_request(user_message):
+
+    text = user_message.lower().strip()
+
+    cancel_phrases = [
+        "cancel",
+        "stop",
+        "stop assessment",
+        "cancel assessment",
+        "reset",
+        "start over",
+        "never mind",
+        "nevermind",
+        "quit assessment",
+    ]
+
+    return any(
+        phrase in text
+        for phrase in cancel_phrases
+    )
+
+
+# ============================================================
 # ROUTE REQUEST
 # ============================================================
 
 def route_request(user_message):
+    """
+    Safe routing strategy:
+
+    1. General health questions default to Groq.
+    2. A disease keyword alone NEVER activates ML.
+    3. Explicit prediction intent is required.
+    4. If prediction intent exists, detect the local model.
+    5. If deterministic detection fails, ask Groq to select
+       from the existing local model registry.
+    """
 
     # --------------------------------------------------------
-    # FIRST: LOCAL DETERMINISTIC ROUTING
+    # GENERAL QUESTION BY DEFAULT
+    # --------------------------------------------------------
+
+    if not is_prediction_request(user_message):
+
+        return {
+            "use_ml": False,
+            "model": None
+        }
+
+    # --------------------------------------------------------
+    # EXPLICIT PREDICTION + LOCAL MODEL DETECTION
     # --------------------------------------------------------
 
     detected_model = detect_model(
@@ -200,14 +390,26 @@ def route_request(user_message):
         }
 
     # --------------------------------------------------------
-    # SECOND: GROQ FALLBACK
+    # GROQ FALLBACK:
+    # ONLY USED WHEN USER EXPLICITLY REQUESTED A PREDICTION
+    # BUT THE MODEL COULD NOT BE DETERMINED LOCALLY.
     # --------------------------------------------------------
 
     available_models = get_available_models()
 
+    if not available_models:
+
+        return {
+            "use_ml": False,
+            "model": None
+        }
+
     prompt = f"""
-Determine whether this message is requesting a prediction from
-a local machine-learning model.
+The user explicitly requested a personal machine-learning
+prediction or assessment.
+
+Determine whether one of the available local ML models matches
+the request.
 
 USER MESSAGE:
 
@@ -217,23 +419,29 @@ AVAILABLE LOCAL MODELS:
 
 {json.dumps(available_models, indent=2)}
 
-Return ONLY JSON.
+Return ONLY valid JSON.
 
-For a general health question:
-
-{{
-    "use_ml": false,
-    "model": null
-}}
-
-For a local ML prediction request:
+If one model clearly matches:
 
 {{
     "use_ml": true,
     "model": "exact_model_name"
 }}
 
-Do not invent model names.
+If no model clearly matches:
+
+{{
+    "use_ml": false,
+    "model": null
+}}
+
+Rules:
+
+1. Use ONLY a model from AVAILABLE LOCAL MODELS.
+2. Do not invent model names.
+3. Do not choose a model merely because the user mentions
+   a disease indirectly.
+4. The user has already expressed prediction intent.
 """
 
     try:
@@ -261,17 +469,23 @@ Do not invent model names.
             .strip()
         )
 
-        content = content.replace(
-            "```json",
-            ""
-        ).replace(
-            "```",
-            ""
-        ).strip()
+        result = extract_json(content)
 
-        result = json.loads(
-            content
-        )
+        if not isinstance(
+            result,
+            dict
+        ):
+            return {
+                "use_ml": False,
+                "model": None
+            }
+
+        if not result.get("use_ml"):
+
+            return {
+                "use_ml": False,
+                "model": None
+            }
 
         model_name = result.get(
             "model"
@@ -307,7 +521,7 @@ Do not invent model names.
 
 
 # ============================================================
-# EXTRACT INFORMATION
+# EXTRACT PATIENT INFORMATION
 # ============================================================
 
 def extract_information(
@@ -327,7 +541,7 @@ def extract_information(
         {}
     )
 
-    # No schema yet.
+    # Model schema not configured.
     if not fields:
         return {}
 
@@ -358,8 +572,9 @@ Rules:
 2. Never guess.
 3. Never invent values.
 4. Extract only values explicitly provided.
-5. Convert numeric values to numbers.
+5. Convert numeric values to numbers where appropriate.
 6. Do not include missing fields.
+7. Do not infer values from general health questions.
 """
 
     try:
@@ -387,24 +602,23 @@ Rules:
             .strip()
         )
 
-        content = content.replace(
-            "```json",
-            ""
-        ).replace(
-            "```",
-            ""
-        ).strip()
+        result = extract_json(content)
 
-        result = json.loads(
-            content
-        )
+        if not isinstance(
+            result,
+            dict
+        ):
+            return {}
 
         data = result.get(
             "provided_data",
             {}
         )
 
-        if isinstance(data, dict):
+        if isinstance(
+            data,
+            dict
+        ):
             return data
 
         return {}
@@ -533,8 +747,12 @@ def ask_for_missing(
         )
 
     return (
-        "To run the local model, I need:\n\n"
+        "To run the local machine-learning model, "
+        "I need the following information:\n\n"
         + "\n".join(lines)
+        + "\n\nYou can provide the values in one message "
+          "or across multiple messages. Type 'cancel' to "
+          "stop this assessment."
     )
 
 
@@ -555,7 +773,7 @@ MODEL:
 
 {model_name}
 
-USER MESSAGE:
+USER REQUEST:
 
 {user_message}
 
@@ -571,8 +789,11 @@ Rules:
 - Do not invent medical findings.
 - Call it a machine-learning model estimate.
 - Do not call it a confirmed diagnosis.
-- Mention probability or confidence only if present.
+- Mention probability or confidence only if present
+  in the local model result.
 - Keep the answer between 2 and 4 sentences.
+- If appropriate, recommend discussing concerning
+  results with a qualified healthcare professional.
 """
 
     try:
@@ -599,12 +820,17 @@ Rules:
             .content
         )
 
-    except Exception:
+    except Exception as error:
+
+        print(
+            "[HealthcareAI] Explanation error:",
+            error
+        )
 
         return (
             "The local machine-learning model completed "
-            "the assessment. This result is a model estimate "
-            "and not a medical diagnosis.\n\n"
+            "the assessment. This is a model estimate and "
+            "not a medical diagnosis.\n\n"
             f"Result: {result}"
         )
 
@@ -682,9 +908,26 @@ def ask_healthcare_ai(
     user_message
 ):
 
-    # ========================================================
+    # --------------------------------------------------------
+    # CANCEL ACTIVE ASSESSMENT
+    # --------------------------------------------------------
+
+    if (
+        patient_session["model"]
+        and is_cancel_request(user_message)
+    ):
+
+        reset_session()
+
+        return (
+            "The assessment has been cancelled. "
+            "You can ask me a general health question or "
+            "start a new assessment anytime."
+        )
+
+    # --------------------------------------------------------
     # CONTINUE EXISTING ASSESSMENT
-    # ========================================================
+    # --------------------------------------------------------
 
     if patient_session["model"]:
 
@@ -703,14 +946,15 @@ def ask_healthcare_ai(
 
     else:
 
-        # ====================================================
+        # ----------------------------------------------------
         # NEW REQUEST
-        # ====================================================
+        # ----------------------------------------------------
 
         routing = route_request(
             user_message
         )
 
+        # General health question
         if not routing.get(
             "use_ml"
         ):
@@ -730,12 +974,12 @@ def ask_healthcare_ai(
         if not model_name:
 
             return (
-                "I could not match that request to one of "
-                "my configured local assessments."
+                "I could not match that prediction request "
+                "to one of my available local assessments."
             )
 
         # ----------------------------------------------------
-        # MODEL EXISTS BUT INPUT SCHEMA NOT CONFIGURED
+        # MODEL EXISTS BUT SCHEMA IS NOT CONFIGURED
         # ----------------------------------------------------
 
         if not model_is_configured(
@@ -749,6 +993,10 @@ def ask_healthcare_ai(
                 f"has not been configured yet."
             )
 
+        # ----------------------------------------------------
+        # START NEW ASSESSMENT
+        # ----------------------------------------------------
+
         patient_session["model"] = (
             model_name
         )
@@ -760,6 +1008,7 @@ def ask_healthcare_ai(
             f"{model_name} assessment..."
         )
 
+        # The initial request may already contain patient data.
         new_data = extract_information(
             user_message,
             model_name
@@ -768,7 +1017,6 @@ def ask_healthcare_ai(
         merge_patient_data(
             new_data
         )
-
 
     # ========================================================
     # CHECK MISSING DATA
@@ -784,7 +1032,6 @@ def ask_healthcare_ai(
             model_name,
             missing
         )
-
 
     # ========================================================
     # RUN LOCAL MODEL
@@ -810,7 +1057,6 @@ def ask_healthcare_ai(
         )
     )
 
-
     try:
 
         result = predict(
@@ -828,14 +1074,13 @@ def ask_healthcare_ai(
         reset_session()
 
         return (
-            "I couldn't run the local model with "
-            "the provided information. The model input "
-            "format may need adjustment."
+            "I couldn't run the local model with the "
+            "provided information. The model input format "
+            "may need adjustment."
         )
 
-
     # ========================================================
-    # EXPLAIN RESULT
+    # EXPLAIN RESULT USING GROQ
     # ========================================================
 
     answer = explain_prediction(
@@ -844,9 +1089,8 @@ def ask_healthcare_ai(
         model_name
     )
 
-
     # ========================================================
-    # RESET AFTER COMPLETION
+    # RESET SESSION AFTER COMPLETION
     # ========================================================
 
     reset_session()
@@ -880,7 +1124,6 @@ if __name__ == "__main__":
         "Type 'exit' to stop.\n"
     )
 
-
     while True:
 
         try:
@@ -897,7 +1140,6 @@ if __name__ == "__main__":
 
             break
 
-
         if (
             user_message
             .lower()
@@ -911,11 +1153,9 @@ if __name__ == "__main__":
 
             break
 
-
         if not user_message.strip():
 
             continue
-
 
         try:
 
