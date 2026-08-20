@@ -1,5 +1,9 @@
 MODEL_SCHEMAS = {
 
+    # ============================================================
+    # HEART DISEASE
+    # ============================================================
+
     "heart_disease_pipeline": {
         "description": "Heart disease risk classification",
 
@@ -84,6 +88,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # BREAST CANCER
+    # ============================================================
+
     "breast_cancer": {
         "description": "Breast cancer classification",
 
@@ -102,6 +110,11 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # DIABETES BINARY
+    # Exact fields used by diabetes_binary.pkl
+    # ============================================================
+
     "diabetes_binary": {
         "description": "Diabetes risk classification",
 
@@ -113,9 +126,123 @@ MODEL_SCHEMAS = {
             "sugar disease"
         ],
 
-        "fields": {}
+        "fields": {
+
+            "HighBP": {
+                "type": "number",
+                "label": "Do you have high blood pressure? (0 = No, 1 = Yes)"
+            },
+
+            "HighChol": {
+                "type": "number",
+                "label": "Do you have high cholesterol? (0 = No, 1 = Yes)"
+            },
+
+            "CholCheck": {
+                "type": "number",
+                "label": "Have you had a cholesterol check in the last 5 years? (0 = No, 1 = Yes)"
+            },
+
+            "BMI": {
+                "type": "number",
+                "label": "What is your BMI?"
+            },
+
+            "Smoker": {
+                "type": "number",
+                "label": "Have you smoked at least 100 cigarettes in your lifetime? (0 = No, 1 = Yes)"
+            },
+
+            "Stroke": {
+                "type": "number",
+                "label": "Have you ever had a stroke? (0 = No, 1 = Yes)"
+            },
+
+            "HeartDiseaseorAttack": {
+                "type": "number",
+                "label": "Have you had coronary heart disease or a heart attack? (0 = No, 1 = Yes)"
+            },
+
+            "PhysActivity": {
+                "type": "number",
+                "label": "Have you done physical activity in the past 30 days? (0 = No, 1 = Yes)"
+            },
+
+            "Fruits": {
+                "type": "number",
+                "label": "Do you consume fruits regularly? (0 = No, 1 = Yes)"
+            },
+
+            "Veggies": {
+                "type": "number",
+                "label": "Do you consume vegetables regularly? (0 = No, 1 = Yes)"
+            },
+
+            "HvyAlcoholConsump": {
+                "type": "number",
+                "label": "Do you consume alcohol heavily? (0 = No, 1 = Yes)"
+            },
+
+            "AnyHealthcare": {
+                "type": "number",
+                "label": "Do you have any healthcare coverage? (0 = No, 1 = Yes)"
+            },
+
+            "NoDocbcCost": {
+                "type": "number",
+                "label": "Was there a time you needed a doctor but could not see one because of cost? (0 = No, 1 = Yes)"
+            },
+
+            "GenHlth": {
+                "type": "number",
+                "label": "Rate your general health (1 = Excellent, 2 = Very good, 3 = Good, 4 = Fair, 5 = Poor)"
+            },
+
+            "MentHlth": {
+                "type": "number",
+                "label": "How many days in the last 30 was your mental health not good? (0-30)"
+            },
+
+            "PhysHlth": {
+                "type": "number",
+                "label": "How many days in the last 30 was your physical health not good? (0-30)"
+            },
+
+            "DiffWalk": {
+                "type": "number",
+                "label": "Do you have serious difficulty walking or climbing stairs? (0 = No, 1 = Yes)"
+            },
+
+            "Sex": {
+                "type": "category",
+                "label": "Sex (male/female)",
+                "values": {
+                    "female": 0,
+                    "male": 1
+                }
+            },
+
+            "Age": {
+                "type": "number",
+                "label": "Age category used by the model (1-13)"
+            },
+
+            "Education": {
+                "type": "number",
+                "label": "Education category (1-6)"
+            },
+
+            "Income": {
+                "type": "number",
+                "label": "Income category (1-8)"
+            }
+        }
     },
 
+
+    # ============================================================
+    # DIABETES HEALTH INDICATORS
+    # ============================================================
 
     "diabetes_health_indicators": {
         "description": "Diabetes health classification",
@@ -129,6 +256,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # STROKE
+    # ============================================================
+
     "stroke_prediction": {
         "description": "Stroke risk prediction",
 
@@ -141,6 +272,10 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
+
+    # ============================================================
+    # KIDNEY DISEASE
+    # ============================================================
 
     "kidney_disease_dataset": {
         "description": "Kidney disease assessment",
@@ -156,6 +291,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # PARKINSON'S
+    # ============================================================
+
     "parkinsons_classification": {
         "description": "Parkinson's disease classification",
 
@@ -168,6 +307,10 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
+
+    # ============================================================
+    # THYROID
+    # ============================================================
 
     "thyroid": {
         "description": "Thyroid disease classification",
@@ -182,6 +325,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # OBESITY
+    # ============================================================
+
     "obesity_levels": {
         "description": "Obesity level classification",
 
@@ -194,6 +341,10 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
+
+    # ============================================================
+    # MATERNAL HEALTH
+    # ============================================================
 
     "maternal_health_risk": {
         "description": "Maternal health risk classification",
@@ -208,6 +359,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # DRY EYE
+    # ============================================================
+
     "Dry_Eye_Dataset": {
         "description": "Dry eye disease classification",
 
@@ -221,6 +376,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # HEART FAILURE
+    # ============================================================
+
     "heart_failure_clinical_records": {
         "description": "Heart failure classification",
 
@@ -232,6 +391,10 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
+
+    # ============================================================
+    # HEPATITIS
+    # ============================================================
 
     "hepatitis": {
         "description": "Hepatitis classification",
@@ -245,6 +408,10 @@ MODEL_SCHEMAS = {
     },
 
 
+    # ============================================================
+    # INDIAN LIVER
+    # ============================================================
+
     "indian_liver": {
         "description": "Liver disease classification",
 
@@ -257,6 +424,10 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
+
+    # ============================================================
+    # LUNG DISEASE
+    # ============================================================
 
     "lung_disease": {
         "description": "Lung disease classification",
