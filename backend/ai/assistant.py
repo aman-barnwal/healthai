@@ -1514,7 +1514,33 @@ def main():
         print(
             response
         )
+# ============================================================
+# API CHAT ENTRY POINT
+# ============================================================
 
+def chat_with_healthcare_ai(user_message):
+    """
+    Main entry point used by the Flask API.
+
+    This connects:
+    Frontend
+        ↓
+    Flask /api/chat
+        ↓
+    HealthcareAI hybrid engine
+        ↓
+    Local ML models + Groq
+    """
+
+    if not user_message or not user_message.strip():
+        return "Please enter a message."
+
+    user_message = user_message.strip()
+
+    # Use the existing HealthcareAI conversation handler.
+    # If your assistant.py already has a main function that
+    # processes messages, route through it here.
+    return handle_user_message(user_message)
 
 # ============================================================
 # RUN

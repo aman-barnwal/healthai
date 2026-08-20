@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 
+from backend.ai.assistant import chat_with_healthcare_ai
+
 
 chat_bp = Blueprint(
     "chat",
@@ -10,25 +12,62 @@ chat_bp = Blueprint(
 @chat_bp.route("/chat", methods=["POST"])
 def chat():
 
-    data = request.get_json(
-        silent=True
-    ) or {}
+    try:
 
-    message = data.get(
-        "message",
-        ""
-    ).strip()
+        data = request.get_json(
+            silent=True
+        ) or {}
 
-    if not message:
+        message = str(
+            data.get(
+                "message",
+                ""
+            )
+        ).strip()
+
+        if not message:
+
+            return jsonify({
+                "success": False,
+                "error": "Message is required."
+            }), 400
+
+
+        # ---------------------------------------------
+        # SEND MESSAGE TO HYBRID AI ENGINE
+        # ---------------------------------------------
+
+        reply = chat_with_healthcare_ai(
+            message
+        )
+
+
+        # ---------------------------------------------
+        # RETURN RESPONSE TO FRONTEND
+        # ---------------------------------------------
 
         return jsonify({
+
+            "success": True,
+
+            "message": message,
+
+            "reply": reply
+
+        })
+
+
+    except Exception as error:
+
+        print(
+            "[HealthcareAI API Error]:",
+            error
+        )
+
+        return jsonify({
+
             "success": False,
-            "error": "Message is required."
-        }), 400
 
+            "error": "Something went wrong while processing your request."
 
-    return jsonify({
-        "success": True,
-        "message": message,
-        "reply": "HealthcareAI chat endpoint is working."
-    })
+        }), 500
