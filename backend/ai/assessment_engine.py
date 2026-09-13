@@ -186,9 +186,7 @@ class DiabetesAssessment:
 
         return "Got it. What's your height and weight?"
 
-    # ============================================================
     # HEIGHT + WEIGHT + BMI
-    # ============================================================
 
     def _process_height_weight(self, message):
 
@@ -229,9 +227,7 @@ class DiabetesAssessment:
             "What is your sex: male or female?"
         )
 
-    # ============================================================
     # SEX
-    # ============================================================
 
     def _process_sex(self, message):
 
@@ -250,9 +246,7 @@ class DiabetesAssessment:
 
         return "Do you have high blood pressure?"
 
-    # ============================================================
     # YES / NO
-    # ============================================================
 
     def _process_binary(
         self,
