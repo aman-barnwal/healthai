@@ -6,15 +6,11 @@ from backend.ml.assessment_engine import (
 )
 
 
-# ============================================================
 # FEATURE QUESTION DEFINITIONS
-# ============================================================
 
 FEATURE_QUESTIONS = {
 
-    # --------------------------------------------------------
     # COMMON NUMERIC FEATURES
-    # --------------------------------------------------------
 
     "age": {
         "question": "How old are you?",
@@ -88,9 +84,7 @@ FEATURE_QUESTIONS = {
         "type": "sex",
     },
 
-    # --------------------------------------------------------
     # DIABETES FEATURES
-    # --------------------------------------------------------
 
     "HighBP": {
         "question": "Do you have high blood pressure?",
@@ -219,9 +213,7 @@ FEATURE_QUESTIONS = {
         "type": "income",
     },
 
-    # --------------------------------------------------------
     # HEART DISEASE DATASET FEATURES
-    # --------------------------------------------------------
 
     "cp": {
         "question": (
@@ -331,9 +323,7 @@ FEATURE_QUESTIONS = {
 }
 
 
-# ============================================================
 # GENERATE A FALLBACK QUESTION
-# ============================================================
 
 def humanize_feature_name(feature_name):
 
@@ -367,9 +357,7 @@ def create_fallback_question(feature_name):
     }
 
 
-# ============================================================
 # GET QUESTION FOR A FEATURE
-# ============================================================
 
 def get_question_for_feature(feature_name):
 
@@ -390,9 +378,7 @@ def get_question_for_feature(feature_name):
     )
 
 
-# ============================================================
 # BUILD ASSESSMENT QUESTIONS
-# ============================================================
 
 def build_assessment_questions(model_name):
 
@@ -415,9 +401,7 @@ def build_assessment_questions(model_name):
     return questions
 
 
-# ============================================================
 # GET ASSESSMENT INFORMATION
-# ============================================================
 
 def get_assessment_info(model_name):
 
@@ -444,9 +428,7 @@ def get_assessment_info(model_name):
     }
 
 
-# ============================================================
 # TEST
-# ============================================================
 
 if __name__ == "__main__":
 
