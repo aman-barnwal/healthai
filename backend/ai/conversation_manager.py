@@ -10,17 +10,11 @@ from backend.ml.assessment_engine import (
     predict,
 )
 
-
-# ============================================================
 # ACTIVE CONVERSATION SESSIONS
-# ============================================================
 
 SESSIONS = {}
 
-
-# ============================================================
 # SESSION STRUCTURE
-# ============================================================
 
 def create_session(model_name):
 
@@ -59,10 +53,7 @@ def create_session(model_name):
 
     return session
 
-
-# ============================================================
 # GET SESSION
-# ============================================================
 
 def get_session(session_id):
 
@@ -74,10 +65,7 @@ def get_session(session_id):
         session_id
     )
 
-
-# ============================================================
 # DELETE SESSION
-# ============================================================
 
 def delete_session(session_id):
 
@@ -91,10 +79,7 @@ def delete_session(session_id):
 
     return False
 
-
-# ============================================================
 # CANCEL SESSION
-# ============================================================
 
 def cancel_session(session_id):
 
@@ -126,10 +111,7 @@ def cancel_session(session_id):
         )
     }
 
-
-# ============================================================
 # GET CURRENT QUESTION
-# ============================================================
 
 def get_current_question(session):
 
@@ -151,10 +133,7 @@ def get_current_question(session):
         current_index
     ]
 
-
-# ============================================================
 # FORMAT QUESTION RESPONSE
-# ============================================================
 
 def format_question_response(session):
 
@@ -208,10 +187,7 @@ def format_question_response(session):
         ],
     }
 
-
-# ============================================================
 # START ASSESSMENT
-# ============================================================
 
 def start_assessment(model_name):
 
@@ -247,10 +223,7 @@ def start_assessment(model_name):
             )
         }
 
-
-# ============================================================
 # EXTRACT NUMBER
-# ============================================================
 
 def parse_number(text):
 
@@ -279,10 +252,7 @@ def parse_number(text):
 
     return value
 
-
-# ============================================================
 # PARSE YES / NO
-# ============================================================
 
 def parse_yes_no(text):
 
@@ -345,10 +315,7 @@ def parse_yes_no(text):
 
     return None
 
-
-# ============================================================
 # PARSE SEX
-# ============================================================
 
 def parse_sex(text):
 
@@ -374,10 +341,7 @@ def parse_sex(text):
 
     return None
 
-
-# ============================================================
 # PARSE HEIGHT AND WEIGHT
-# ============================================================
 
 def parse_height_weight(text):
 
@@ -436,10 +400,7 @@ def parse_height_weight(text):
         ),
     }
 
-
-# ============================================================
 # PARSE HEALTH RATING
-# ============================================================
 
 def parse_health_rating(text):
 
@@ -468,10 +429,7 @@ def parse_health_rating(text):
 
     return None
 
-
-# ============================================================
 # PARSE EDUCATION
-# ============================================================
 
 def parse_education(text):
 
@@ -508,10 +466,7 @@ def parse_education(text):
 
     return None
 
-
-# ============================================================
 # PARSE INCOME
-# ============================================================
 
 def parse_income(text):
 
@@ -546,10 +501,7 @@ def parse_income(text):
 
     return None
 
-
-# ============================================================
 # PARSE ANSWER
-# ============================================================
 
 def parse_answer(question, user_message):
 
@@ -558,9 +510,7 @@ def parse_answer(question, user_message):
         "number"
     )
 
-    # --------------------------------------------------------
     # YES / NO
-    # --------------------------------------------------------
 
     if question_type == "yes_no":
 
@@ -568,9 +518,7 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # SEX
-    # --------------------------------------------------------
 
     if question_type == "sex":
 
@@ -578,9 +526,7 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # HEIGHT / WEIGHT
-    # --------------------------------------------------------
 
     if question_type == "height_weight":
 
@@ -588,9 +534,7 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # HEALTH RATING
-    # --------------------------------------------------------
 
     if question_type == "health_rating":
 
@@ -598,9 +542,7 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # EDUCATION
-    # --------------------------------------------------------
 
     if question_type == "education":
 
@@ -608,9 +550,7 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # INCOME
-    # --------------------------------------------------------
 
     if question_type == "income":
 
@@ -618,18 +558,13 @@ def parse_answer(question, user_message):
             user_message
         )
 
-    # --------------------------------------------------------
     # DEFAULT NUMBER
-    # --------------------------------------------------------
 
     return parse_number(
         user_message
     )
 
-
-# ============================================================
 # VALIDATE ANSWER
-# ============================================================
 
 def validate_answer(question, value):
 
@@ -644,9 +579,7 @@ def validate_answer(question, value):
         "type"
     )
 
-    # --------------------------------------------------------
     # NUMERIC VALIDATION
-    # --------------------------------------------------------
 
     if question_type == "number":
 
@@ -676,9 +609,7 @@ def validate_answer(question, value):
                     f"{maximum}."
                 )
 
-    # --------------------------------------------------------
     # HEIGHT / WEIGHT VALIDATION
-    # --------------------------------------------------------
 
     if question_type == "height_weight":
 
@@ -694,10 +625,7 @@ def validate_answer(question, value):
 
     return True, None
 
-
-# ============================================================
 # STORE ANSWER
-# ============================================================
 
 def store_answer(
     session,
@@ -709,9 +637,7 @@ def store_answer(
         "feature"
     ]
 
-    # --------------------------------------------------------
     # BMI QUESTION
-    # --------------------------------------------------------
 
     if question.get(
         "type"
@@ -740,18 +666,13 @@ def store_answer(
 
         return
 
-    # --------------------------------------------------------
     # NORMAL FEATURE
-    # --------------------------------------------------------
 
     session[
         "answers"
     ][feature] = value
 
-
-# ============================================================
 # COMPLETE ASSESSMENT
-# ============================================================
 
 def complete_assessment(session):
 
@@ -837,10 +758,7 @@ def complete_assessment(session):
             )
         }
 
-
-# ============================================================
 # HANDLE USER ANSWER
-# ============================================================
 
 def handle_answer(
     session_id,
@@ -875,9 +793,7 @@ def handle_answer(
             )
         }
 
-    # --------------------------------------------------------
     # CURRENT QUESTION
-    # --------------------------------------------------------
 
     question = get_current_question(
         session
@@ -889,18 +805,14 @@ def handle_answer(
             session
         )
 
-    # --------------------------------------------------------
     # PARSE ANSWER
-    # --------------------------------------------------------
 
     value = parse_answer(
         question,
         user_message
     )
 
-    # --------------------------------------------------------
     # VALIDATE ANSWER
-    # --------------------------------------------------------
 
     valid, error_message = validate_answer(
         question,
@@ -934,9 +846,7 @@ def handle_answer(
             ],
         }
 
-    # --------------------------------------------------------
     # STORE ANSWER
-    # --------------------------------------------------------
 
     store_answer(
         session,
@@ -944,9 +854,7 @@ def handle_answer(
         value
     )
 
-    # --------------------------------------------------------
     # NEXT QUESTION
-    # --------------------------------------------------------
 
     session[
         "current_index"
@@ -966,10 +874,7 @@ def handle_answer(
         session
     )
 
-
-# ============================================================
 # GET SESSION STATUS
-# ============================================================
 
 def get_session_status(session_id):
 
@@ -1021,10 +926,7 @@ def get_session_status(session_id):
         ),
     }
 
-
-# ============================================================
 # TEST
-# ============================================================
 
 if __name__ == "__main__":
 

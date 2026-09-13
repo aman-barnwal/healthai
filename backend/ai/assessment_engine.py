@@ -298,9 +298,7 @@ class DiabetesAssessment:
 
         return None
 
-    # ============================================================
     # GENERAL HEALTH
-    # ============================================================
 
     def _process_general_health(self, message):
 
@@ -326,9 +324,7 @@ class DiabetesAssessment:
             "good, fair, or poor."
         )
 
-    # ============================================================
     # DAYS
-    # ============================================================
 
     def _process_days(
         self,
@@ -353,9 +349,7 @@ class DiabetesAssessment:
 
         return next_question
 
-    # ============================================================
     # FRUITS + VEGETABLES
-    # ============================================================
 
     def _process_fruits_veggies(self, message):
 
@@ -370,9 +364,7 @@ class DiabetesAssessment:
 
         return "Do you regularly eat vegetables?"
 
-    # ============================================================
     # EDUCATION
-    # ============================================================
 
     def _process_education(self, message):
 
@@ -411,9 +403,7 @@ class DiabetesAssessment:
             "income range?"
         )
 
-    # ============================================================
     # INCOME
-    # ============================================================
 
     def _process_income(self, message):
 
@@ -433,9 +423,7 @@ class DiabetesAssessment:
 
         return None
 
-    # ============================================================
     # AGE CONVERSION
-    # ============================================================
 
     def _convert_age(self, age):
 
@@ -477,9 +465,7 @@ class DiabetesAssessment:
 
         return 13
 
-    # ============================================================
     # INCOME CONVERSION
-    # ============================================================
 
     def _convert_income(self, income):
 
@@ -506,9 +492,7 @@ class DiabetesAssessment:
 
         return 8
 
-    # ============================================================
     # GET MODEL DATA
-    # ============================================================
 
     def get_model_data(self):
 

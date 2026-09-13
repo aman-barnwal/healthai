@@ -15,10 +15,7 @@ from backend.ai.conversation_manager import (
     get_session,
 )
 
-
-# ============================================================
 # PROJECT / ENVIRONMENT
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,10 +26,7 @@ load_dotenv(
     override=True,
 )
 
-
-# ============================================================
 # GROQ CONFIGURATION
-# ============================================================
 
 GROQ_API_KEY = os.getenv(
     "GROQ_API_KEY"
@@ -61,10 +55,7 @@ client = OpenAI(
     base_url=GROQ_BASE_URL,
 )
 
-
-# ============================================================
 # SYSTEM PROMPT
-# ============================================================
 
 SYSTEM_PROMPT = """
 You are HealthcareAI, a health-information and
@@ -123,10 +114,7 @@ STYLE:
 - Do not sound like an API or terminal
 """
 
-
-# ============================================================
 # IN-MEMORY CHAT HISTORY
-# ============================================================
 
 MAX_HISTORY_MESSAGES = 20
 
@@ -134,17 +122,11 @@ chat_history = deque(
     maxlen=MAX_HISTORY_MESSAGES
 )
 
-
-# ============================================================
 # ACTIVE ASSESSMENT SESSION
-# ============================================================
 
 active_assessment_session_id = None
 
-
-# ============================================================
 # CANCEL DETECTION
-# ============================================================
 
 def is_cancel_request(user_message):
 
@@ -184,19 +166,13 @@ def is_cancel_request(user_message):
         for phrase in cancel_phrases
     )
 
-
-# ============================================================
 # RESET GENERAL CHAT HISTORY
-# ============================================================
 
 def clear_chat_history():
 
     chat_history.clear()
 
-
-# ============================================================
 # ADD CHAT MESSAGE
-# ============================================================
 
 def add_to_history(
     role,
@@ -216,10 +192,7 @@ def add_to_history(
 
     )
 
-
-# ============================================================
 # BUILD GROQ MESSAGES
-# ============================================================
 
 def build_groq_messages(
     user_message
@@ -251,10 +224,7 @@ def build_groq_messages(
 
     return messages
 
-
-# ============================================================
 # EMERGENCY / URGENT SYMPTOM CHECK
-# ============================================================
 
 def detect_urgent_symptoms(
     user_message
@@ -318,10 +288,7 @@ def detect_urgent_symptoms(
 
     return False
 
-
-# ============================================================
 # HIGH-SEVERITY ABDOMINAL PAIN CHECK
-# ============================================================
 
 def detect_severe_abdominal_pain(
     user_message
@@ -380,10 +347,7 @@ def detect_severe_abdominal_pain(
         and has_severity
     )
 
-
-# ============================================================
 # URGENT RESPONSE
-# ============================================================
 
 def get_urgent_response():
 
@@ -397,10 +361,7 @@ def get_urgent_response():
         "through chat."
     )
 
-
-# ============================================================
 # FORMAT ASSESSMENT START RESPONSE
-# ============================================================
 
 def format_assessment_start(
     result
@@ -442,10 +403,7 @@ def format_assessment_start(
 
     return message
 
-
-# ============================================================
 # FORMAT ASSESSMENT RESPONSE
-# ============================================================
 
 def format_assessment_response(
     result
@@ -528,10 +486,7 @@ def format_assessment_response(
         "Please answer the current assessment question."
     )
 
-
-# ============================================================
 # START LOCAL ML ASSESSMENT
-# ============================================================
 
 def start_local_assessment(
     model_name
@@ -562,10 +517,7 @@ def start_local_assessment(
         result
     )
 
-
-# ============================================================
 # HANDLE ACTIVE ASSESSMENT
-# ============================================================
 
 def handle_active_assessment(
     user_message
@@ -648,10 +600,7 @@ def handle_active_assessment(
 
     return response
 
-
-# ============================================================
 # ASK GROQ WITH CONTEXT
-# ============================================================
 
 def ask_groq(
     user_message
@@ -715,10 +664,7 @@ def ask_groq(
             "Please try again."
         )
 
-
-# ============================================================
 # ROUTE ML REQUEST
-# ============================================================
 
 def route_ml_request(user_message):
 
@@ -739,9 +685,7 @@ def route_ml_request(user_message):
 
         return None
 
-# ============================================================
 # MAIN HEALTHCARE AI
-# ============================================================
 
 def healthcare_ai(
     user_message
@@ -768,9 +712,7 @@ def healthcare_ai(
             "risk assessment."
         )
 
-    # --------------------------------------------------------
     # ACTIVE ML ASSESSMENT
-    # --------------------------------------------------------
 
     if active_assessment_session_id:
 
@@ -778,11 +720,9 @@ def healthcare_ai(
             user_message
         )
 
-    # --------------------------------------------------------
     # URGENT SYMPTOMS
     #
     # Safety response takes priority over normal routing.
-    # --------------------------------------------------------
 
     if detect_urgent_symptoms(
         user_message
@@ -802,9 +742,7 @@ def healthcare_ai(
 
         return response
 
-    # --------------------------------------------------------
     # SEVERE / WORSENING ABDOMINAL PAIN
-    # --------------------------------------------------------
 
     if detect_severe_abdominal_pain(
         user_message
@@ -831,9 +769,7 @@ def healthcare_ai(
 
         return response
 
-    # --------------------------------------------------------
     # NEW LOCAL ML ASSESSMENT
-    # --------------------------------------------------------
 
     model_name = route_ml_request(
         user_message
@@ -850,18 +786,13 @@ def healthcare_ai(
             model_name
         )
 
-    # --------------------------------------------------------
     # GENERAL HEALTH CONVERSATION
-    # --------------------------------------------------------
 
     return ask_groq(
         user_message
     )
 
-
-# ============================================================
 # BACKWARD-COMPATIBLE API ENTRY POINT
-# ============================================================
 
 def chat_with_healthcare_ai(
     user_message
@@ -871,10 +802,7 @@ def chat_with_healthcare_ai(
         user_message
     )
 
-
-# ============================================================
 # OPTIONAL RESET FUNCTION
-# ============================================================
 
 def reset_healthcare_ai():
 
@@ -901,10 +829,7 @@ def reset_healthcare_ai():
 
     return True
 
-
-# ============================================================
 # CLI
-# ============================================================
 
 def main():
 
@@ -978,10 +903,7 @@ def main():
             response
         )
 
-
-# ============================================================
 # RUN
-# ============================================================
 
 if __name__ == "__main__":
 

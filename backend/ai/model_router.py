@@ -1,9 +1,6 @@
 import re
 
-
-# ============================================================
 # MODEL REGISTRY
-# ============================================================
 
 MODEL_REGISTRY = {
 
@@ -183,10 +180,7 @@ MODEL_REGISTRY = {
     }
 }
 
-
-# ============================================================
 # NORMALIZE TEXT
-# ============================================================
 
 def normalize_text(text):
 
@@ -203,10 +197,7 @@ def normalize_text(text):
 
     return text
 
-
-# ============================================================
 # ROUTE USER MESSAGE TO A MODEL
-# ============================================================
 
 def detect_model(user_message):
 
@@ -248,10 +239,7 @@ def detect_model(user_message):
 
     return best_model
 
-
-# ============================================================
 # GET MODEL DISPLAY NAME
-# ============================================================
 
 def get_model_display_name(model_name):
 
@@ -270,10 +258,7 @@ def get_model_display_name(model_name):
         model_name
     )
 
-
-# ============================================================
 # GET MODEL INFORMATION
-# ============================================================
 
 def get_model_config(model_name):
 
@@ -281,10 +266,7 @@ def get_model_config(model_name):
         model_name
     )
 
-
-# ============================================================
 # CHECK IF MESSAGE IS A HEALTH ASSESSMENT REQUEST
-# ============================================================
 
 def is_assessment_request(user_message):
 
@@ -325,10 +307,7 @@ def is_assessment_request(user_message):
         for word in assessment_words
     )
 
-
-# ============================================================
 # GET SUPPORTED MODELS
-# ============================================================
 
 def get_supported_models():
 
@@ -349,10 +328,7 @@ def get_supported_models():
 
     return models
 
-
-# ============================================================
 # TEST
-# ============================================================
 
 if __name__ == "__main__":
 

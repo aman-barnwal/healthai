@@ -11,10 +11,7 @@ import pandas as pd
 
 from sklearn.metrics import accuracy_score, f1_score
 
-
-# ============================================================
 # PATH SETUP
-# ============================================================
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATASET_DIR = ROOT_DIR / "dataset"
@@ -32,10 +29,7 @@ print(f"Project root : {ROOT_DIR}")
 print(f"Dataset dir  : {DATASET_DIR}")
 print(f"Model dir    : {MODEL_DIR}")
 
-
-# ============================================================
 # HELPERS
-# ============================================================
 
 def format_size(size_bytes):
     if size_bytes >= 1024 ** 3:
@@ -220,10 +214,7 @@ def check_feature_compatibility(model, X):
         )
     )
 
-
-# ============================================================
 # RESULTS
-# ============================================================
 
 results = []
 
@@ -235,10 +226,7 @@ if not model_files:
 
 print(f"\nModels discovered: {len(model_files)}")
 
-
-# ============================================================
 # MAIN TEST LOOP
-# ============================================================
 
 for model_path in model_files:
 
@@ -271,9 +259,7 @@ for model_path in model_files:
 
     print(f"Size: {format_size(size_bytes)}")
 
-    # --------------------------------------------------------
     # HUGE MODEL SAFETY
-    # --------------------------------------------------------
 
     if size_gb > MAX_MODEL_SIZE_GB:
 
@@ -291,9 +277,7 @@ for model_path in model_files:
 
         continue
 
-    # --------------------------------------------------------
     # METADATA
-    # --------------------------------------------------------
 
     metadata, metadata_path = load_metadata(model_name)
 
@@ -306,9 +290,7 @@ for model_path in model_files:
         print("Metadata: FOUND BUT INVALID")
         warnings_list.append("Metadata invalid")
 
-    # --------------------------------------------------------
     # LOAD MODEL
-    # --------------------------------------------------------
 
     model = None
 
@@ -347,9 +329,7 @@ for model_path in model_files:
 
         continue
 
-    # --------------------------------------------------------
     # FIND DATASET
-    # --------------------------------------------------------
 
     dataset_path = find_dataset(model_name, metadata)
 
@@ -375,9 +355,7 @@ for model_path in model_files:
 
     result["dataset"] = str(dataset_path)
 
-    # --------------------------------------------------------
     # LOAD DATASET
-    # --------------------------------------------------------
 
     try:
 
@@ -411,9 +389,7 @@ for model_path in model_files:
 
         continue
 
-    # --------------------------------------------------------
     # TARGET DETECTION
-    # --------------------------------------------------------
 
     target = detect_target(df, metadata)
 
@@ -440,9 +416,7 @@ for model_path in model_files:
 
         continue
 
-    # --------------------------------------------------------
     # PREPARE DATA
-    # --------------------------------------------------------
 
     df = df.dropna(subset=[target])
 
@@ -459,9 +433,7 @@ for model_path in model_files:
 
     result["classes"] = int(y.nunique())
 
-    # --------------------------------------------------------
     # FEATURE COMPATIBILITY
-    # --------------------------------------------------------
 
     compatible, message = check_feature_compatibility(
         model,
@@ -473,9 +445,7 @@ for model_path in model_files:
     if not compatible:
         warnings_list.append(message)
 
-    # --------------------------------------------------------
     # SAMPLE DATA
-    # --------------------------------------------------------
 
     X_test, y_test = sample_data(X, y)
 
@@ -486,9 +456,7 @@ for model_path in model_files:
 
     result["test_rows"] = len(X_test)
 
-    # --------------------------------------------------------
     # RUN PREDICTION
-    # --------------------------------------------------------
 
     try:
 
@@ -522,9 +490,7 @@ for model_path in model_files:
 
         continue
 
-    # --------------------------------------------------------
     # METRICS
-    # --------------------------------------------------------
 
     try:
 
@@ -554,9 +520,7 @@ for model_path in model_files:
 
         warnings_list.append(warning)
 
-    # --------------------------------------------------------
     # HEALTH CHECKS
-    # --------------------------------------------------------
 
     if result["accuracy"] is not None:
 
@@ -589,9 +553,7 @@ for model_path in model_files:
 
         warnings_list.append(warning)
 
-    # --------------------------------------------------------
     # FINAL STATUS
-    # --------------------------------------------------------
 
     if warnings_list:
 
@@ -605,9 +567,7 @@ for model_path in model_files:
 
     results.append(result)
 
-    # --------------------------------------------------------
     # MEMORY CLEANUP
-    # --------------------------------------------------------
 
     del df
     del X
@@ -619,10 +579,7 @@ for model_path in model_files:
 
     gc.collect()
 
-
-# ============================================================
 # FINAL REPORT
-# ============================================================
 
 print("\n")
 print("=" * 90)

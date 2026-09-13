@@ -15,10 +15,7 @@ import math
 import re
 from numbers import Number
 
-
-# ============================================================
 # NORMALIZATION
-# ============================================================
 
 def normalize_text(value):
     """
@@ -35,10 +32,7 @@ def normalize_text(value):
     except Exception:
         return ""
 
-
-# ============================================================
 # SAFE NUMERIC CHECK
-# ============================================================
 
 def is_valid_number(value):
     """
@@ -56,10 +50,7 @@ def is_valid_number(value):
     except Exception:
         return False
 
-
-# ============================================================
 # YES / NO PARSER
-# ============================================================
 
 def parse_yes_no(value):
 
@@ -103,10 +94,7 @@ def parse_yes_no(value):
 
     return None
 
-
-# ============================================================
 # NUMBER EXTRACTION
-# ============================================================
 
 def extract_number(value):
     """
@@ -148,10 +136,7 @@ def extract_number(value):
     except (TypeError, ValueError, OverflowError):
         return None
 
-
-# ============================================================
 # INTEGER PARSER
-# ============================================================
 
 def parse_integer(value):
 
@@ -165,10 +150,7 @@ def parse_integer(value):
     except (TypeError, ValueError, OverflowError):
         return None
 
-
-# ============================================================
 # FLOAT PARSER
-# ============================================================
 
 def parse_float(value):
 
@@ -188,10 +170,7 @@ def parse_float(value):
     except (TypeError, ValueError, OverflowError):
         return None
 
-
-# ============================================================
 # AGE PARSER
-# ============================================================
 
 def parse_age(value):
 
@@ -205,10 +184,7 @@ def parse_age(value):
 
     return age
 
-
-# ============================================================
 # AGE CATEGORY PARSER
-# ============================================================
 
 def parse_age_category(value):
     """
@@ -241,10 +217,7 @@ def parse_age_category(value):
 
     return min(13, ((age - 25) // 5) + 2)
 
-
-# ============================================================
 # BMI PARSER
-# ============================================================
 
 def parse_bmi(value):
 
@@ -327,10 +300,7 @@ def parse_bmi(value):
 
     return None
 
-
-# ============================================================
 # SEX / GENDER PARSER
-# ============================================================
 
 def parse_sex(value):
     """
@@ -370,10 +340,7 @@ def parse_sex(value):
 
     return None
 
-
-# ============================================================
 # GENERAL HEALTH
-# ============================================================
 
 def parse_general_health(value):
 
@@ -397,10 +364,7 @@ def parse_general_health(value):
 
     return mapping.get(text)
 
-
-# ============================================================
 # EDUCATION
-# ============================================================
 
 def parse_education(value):
 
@@ -443,10 +407,7 @@ def parse_education(value):
 
     return None
 
-
-# ============================================================
 # INCOME
-# ============================================================
 
 def parse_income(value):
 
@@ -484,10 +445,7 @@ def parse_income(value):
 
     return None
 
-
-# ============================================================
 # CHEST PAIN TYPE
-# ============================================================
 
 def parse_chest_pain(value):
 
@@ -519,10 +477,7 @@ def parse_chest_pain(value):
 
     return mapping.get(text)
 
-
-# ============================================================
 # DAYS PARSER
-# ============================================================
 
 def parse_days(value):
 
@@ -539,10 +494,7 @@ def parse_days(value):
 
     return number
 
-
-# ============================================================
 # EVER MARRIED
-# ============================================================
 
 def parse_ever_married(value):
 
@@ -563,10 +515,7 @@ def parse_ever_married(value):
 
     return parse_yes_no(value)
 
-
-# ============================================================
 # RESIDENCE TYPE
-# ============================================================
 
 def parse_residence_type(value):
 
@@ -585,10 +534,7 @@ def parse_residence_type(value):
 
     return mapping.get(text)
 
-
-# ============================================================
 # WORK TYPE
-# ============================================================
 
 def parse_work_type(value):
     """
@@ -625,10 +571,7 @@ def parse_work_type(value):
 
     return mapping.get(text)
 
-
-# ============================================================
 # SMOKING STATUS
-# ============================================================
 
 def parse_smoking_status(value):
 
@@ -654,10 +597,7 @@ def parse_smoking_status(value):
 
     return mapping.get(text)
 
-
-# ============================================================
 # BINARY FEATURE LIST
-# ============================================================
 
 YES_NO_FEATURES = {
 
@@ -680,10 +620,7 @@ YES_NO_FEATURES = {
 
 }
 
-
-# ============================================================
 # FEATURE-SPECIFIC PARSER
-# ============================================================
 
 def parse_feature(feature, value):
 
@@ -702,16 +639,12 @@ def parse_feature(feature, value):
     except Exception:
         return None
 
-    # --------------------------------------------------------
     # YES / NO
-    # --------------------------------------------------------
 
     if feature_lower in YES_NO_FEATURES:
         return parse_yes_no(value)
 
-    # --------------------------------------------------------
     # AGE
-    # --------------------------------------------------------
 
     if feature_lower == "age":
         return parse_age(value)
@@ -722,9 +655,7 @@ def parse_feature(feature, value):
     }:
         return parse_age_category(value)
 
-    # --------------------------------------------------------
     # SEX / GENDER
-    # --------------------------------------------------------
 
     if feature_lower in {
         "sex",
@@ -732,16 +663,12 @@ def parse_feature(feature, value):
     }:
         return parse_sex(value)
 
-    # --------------------------------------------------------
     # BMI
-    # --------------------------------------------------------
 
     if feature_lower == "bmi":
         return parse_bmi(value)
 
-    # --------------------------------------------------------
     # GENERAL HEALTH
-    # --------------------------------------------------------
 
     if feature_lower in {
         "genhlth",
@@ -750,9 +677,7 @@ def parse_feature(feature, value):
     }:
         return parse_general_health(value)
 
-    # --------------------------------------------------------
     # EDUCATION
-    # --------------------------------------------------------
 
     if feature_lower in {
         "education",
@@ -761,9 +686,7 @@ def parse_feature(feature, value):
     }:
         return parse_education(value)
 
-    # --------------------------------------------------------
     # INCOME
-    # --------------------------------------------------------
 
     if feature_lower in {
         "income",
@@ -772,9 +695,7 @@ def parse_feature(feature, value):
     }:
         return parse_income(value)
 
-    # --------------------------------------------------------
     # CHEST PAIN
-    # --------------------------------------------------------
 
     if feature_lower in {
         "cp",
@@ -783,9 +704,7 @@ def parse_feature(feature, value):
     }:
         return parse_chest_pain(value)
 
-    # --------------------------------------------------------
     # DAYS
-    # --------------------------------------------------------
 
     if feature_lower in {
         "menthlth",
@@ -795,16 +714,12 @@ def parse_feature(feature, value):
     }:
         return parse_days(value)
 
-    # --------------------------------------------------------
     # MARRIAGE
-    # --------------------------------------------------------
 
     if feature_lower == "ever_married":
         return parse_ever_married(value)
 
-    # --------------------------------------------------------
     # RESIDENCE
-    # --------------------------------------------------------
 
     if feature_lower in {
         "residence_type",
@@ -812,9 +727,7 @@ def parse_feature(feature, value):
     }:
         return parse_residence_type(value)
 
-    # --------------------------------------------------------
     # WORK TYPE
-    # --------------------------------------------------------
 
     if feature_lower in {
         "work_type",
@@ -822,9 +735,7 @@ def parse_feature(feature, value):
     }:
         return parse_work_type(value)
 
-    # --------------------------------------------------------
     # SMOKING STATUS
-    # --------------------------------------------------------
 
     if feature_lower in {
         "smoking_status",
@@ -832,9 +743,7 @@ def parse_feature(feature, value):
     }:
         return parse_smoking_status(value)
 
-    # --------------------------------------------------------
     # NUMERIC FALLBACK
-    # --------------------------------------------------------
 
     number = extract_number(value)
 
@@ -843,10 +752,7 @@ def parse_feature(feature, value):
 
     return None
 
-
-# ============================================================
 # PARSE USER MESSAGE
-# ============================================================
 
 def parse_user_message(feature, message):
 
@@ -860,10 +766,7 @@ def parse_user_message(feature, message):
         # Absolute safety barrier.
         return None
 
-
-# ============================================================
 # VALIDATE PARSED VALUE
-# ============================================================
 
 def validate_parsed_value(feature, value):
 
@@ -889,16 +792,12 @@ def validate_parsed_value(feature, value):
 
     numeric_value = float(value)
 
-    # --------------------------------------------------------
     # AGE
-    # --------------------------------------------------------
 
     if feature_lower == "age":
         return 0 <= numeric_value <= 120
 
-    # --------------------------------------------------------
     # AGE CATEGORY
-    # --------------------------------------------------------
 
     if feature_lower in {
         "age_category",
@@ -906,16 +805,12 @@ def validate_parsed_value(feature, value):
     }:
         return 1 <= numeric_value <= 13
 
-    # --------------------------------------------------------
     # BMI
-    # --------------------------------------------------------
 
     if feature_lower == "bmi":
         return 5 <= numeric_value <= 100
 
-    # --------------------------------------------------------
     # DAYS
-    # --------------------------------------------------------
 
     if feature_lower in {
         "menthlth",
@@ -925,19 +820,14 @@ def validate_parsed_value(feature, value):
     }:
         return 0 <= numeric_value <= 30
 
-    # --------------------------------------------------------
     # BINARY
-    # --------------------------------------------------------
 
     if feature_lower in YES_NO_FEATURES:
         return numeric_value in {0, 1}
 
     return True
 
-
-# ============================================================
 # MAIN SAFE PARSE + VALIDATE FUNCTION
-# ============================================================
 
 def parse_and_validate(feature, message):
     """
@@ -978,10 +868,7 @@ def parse_and_validate(feature, message):
     except Exception:
         return None
 
-
-# ============================================================
 # TEST SUITE
-# ============================================================
 
 if __name__ == "__main__":
 

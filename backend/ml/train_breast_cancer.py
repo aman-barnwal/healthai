@@ -11,10 +11,7 @@ from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 
-
-# ============================================================
 # PATHS
-# ============================================================
 
 DATASET_PATH = Path(
     "dataset/breast_cancer_wisconsin_diagnostic.csv"
@@ -28,10 +25,7 @@ METADATA_PATH = MODEL_DIR / (
     "breast_cancer_metadata.json"
 )
 
-
-# ============================================================
 # LOAD DATA
-# ============================================================
 
 print("=" * 70)
 print("BREAST CANCER MODEL TRAINING")
@@ -43,10 +37,7 @@ df = pd.read_csv(DATASET_PATH)
 
 print(f"Original shape: {df.shape}")
 
-
-# ============================================================
 # PREPROCESSING
-# ============================================================
 
 # Remove ID because it does not contain useful medical information
 df = df.drop(columns=["id"], errors="ignore")
@@ -73,10 +64,7 @@ for index, label in enumerate(label_encoder.classes_):
 print(f"\nFeatures: {X.shape}")
 print(f"Target: {y.shape}")
 
-
-# ============================================================
 # TRAIN / TEST SPLIT
-# ============================================================
 
 X_train, X_test, y_train, y_test = train_test_split(
     X,
@@ -89,10 +77,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 print(f"\nTraining samples: {len(X_train)}")
 print(f"Testing samples: {len(X_test)}")
 
-
-# ============================================================
 # MODELS
-# ============================================================
 
 models = {
 
@@ -133,10 +118,7 @@ models = {
     ])
 }
 
-
-# ============================================================
 # TRAIN AND COMPARE
-# ============================================================
 
 best_model = None
 best_model_name = None
@@ -180,10 +162,7 @@ for name, model in models.items():
 
         best_model_name = name
 
-
-# ============================================================
 # FINAL EVALUATION
-# ============================================================
 
 print("\n" + "=" * 70)
 
@@ -224,10 +203,7 @@ print(
     )
 )
 
-
-# ============================================================
 # SAVE MODEL
-# ============================================================
 
 MODEL_DIR.mkdir(
     parents=True,
@@ -244,10 +220,7 @@ print(
     f"{MODEL_PATH}"
 )
 
-
-# ============================================================
 # SAVE METADATA
-# ============================================================
 
 metadata = {
 

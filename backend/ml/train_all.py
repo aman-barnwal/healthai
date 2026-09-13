@@ -27,10 +27,7 @@ from sklearn.metrics import (
 
 warnings.filterwarnings("ignore")
 
-
-# ============================================================
 # CONFIGURATION
-# ============================================================
 
 DATASET_DIR = Path("dataset")
 MODEL_DIR = Path("backend/models")
@@ -40,10 +37,7 @@ MODEL_DIR.mkdir(
     exist_ok=True
 )
 
-
-# ============================================================
 # DATASET RULES
-# ============================================================
 
 # These are columns that are normally identifiers rather than
 # useful predictive features.
@@ -61,10 +55,7 @@ ID_COLUMNS = {
     "Index"
 }
 
-
-# ============================================================
 # TARGET DETECTION
-# ============================================================
 
 TARGET_NAMES = [
     "target",
@@ -113,25 +104,18 @@ def detect_target(df):
     New datasets should have the target as the LAST column.
     """
 
-    # --------------------------------------------------------
     # Look for known target names
-    # --------------------------------------------------------
 
     for column in TARGET_NAMES:
 
         if column in df.columns:
             return column
 
-    # --------------------------------------------------------
     # Otherwise use the last column
-    # --------------------------------------------------------
 
     return df.columns[-1]
 
-
-# ============================================================
 # IDENTIFIER DETECTION
-# ============================================================
 
 def detect_id_columns(df, target):
     """
@@ -163,10 +147,7 @@ def detect_id_columns(df, target):
 
     return columns_to_remove
 
-
-# ============================================================
 # SPECIAL TARGET PROCESSING
-# ============================================================
 
 def process_target(dataset_name, target_name, y):
     """
@@ -199,10 +180,7 @@ def process_target(dataset_name, target_name, y):
 
     return y
 
-
-# ============================================================
 # PREPROCESSOR
-# ============================================================
 
 def create_preprocessor(X):
 
@@ -224,9 +202,7 @@ def create_preprocessor(X):
         ]
     ).columns.tolist()
 
-    # --------------------------------------------------------
     # Numerical pipeline
-    # --------------------------------------------------------
 
     numerical_pipeline = Pipeline(
         steps=[
@@ -244,9 +220,7 @@ def create_preprocessor(X):
         ]
     )
 
-    # --------------------------------------------------------
     # Categorical pipeline
-    # --------------------------------------------------------
 
     categorical_pipeline = Pipeline(
         steps=[
@@ -266,9 +240,7 @@ def create_preprocessor(X):
         ]
     )
 
-    # --------------------------------------------------------
     # Combine
-    # --------------------------------------------------------
 
     preprocessor = ColumnTransformer(
         transformers=[
@@ -292,10 +264,7 @@ def create_preprocessor(X):
         categorical_features
     )
 
-
-# ============================================================
 # MODEL DEFINITIONS
-# ============================================================
 
 def get_models():
 
@@ -317,10 +286,7 @@ def get_models():
             )
     }
 
-
-# ============================================================
 # TRAIN ONE DATASET
-# ============================================================
 
 def train_dataset(csv_path):
 
@@ -331,9 +297,7 @@ def train_dataset(csv_path):
     print(f"DATASET: {dataset_name}")
     print("=" * 75)
 
-    # --------------------------------------------------------
     # LOAD
-    # --------------------------------------------------------
 
     df = pd.read_csv(csv_path)
 
@@ -345,9 +309,7 @@ def train_dataset(csv_path):
         f"Original shape: {df.shape}"
     )
 
-    # --------------------------------------------------------
     # Remove duplicate rows
-    # --------------------------------------------------------
 
     before = len(df)
 
@@ -363,9 +325,7 @@ def train_dataset(csv_path):
         f"Final dataset shape: {df.shape}"
     )
 
-    # --------------------------------------------------------
     # Target
-    # --------------------------------------------------------
 
     target = detect_target(df)
 
@@ -373,9 +333,7 @@ def train_dataset(csv_path):
         f"\nDetected target: {target}"
     )
 
-    # --------------------------------------------------------
     # Target must contain useful data
-    # --------------------------------------------------------
 
     if df[target].nunique() < 2:
 
@@ -386,9 +344,7 @@ def train_dataset(csv_path):
 
         return None
 
-    # --------------------------------------------------------
     # Split X / y
-    # --------------------------------------------------------
 
     X = df.drop(
         columns=[target]
@@ -396,9 +352,7 @@ def train_dataset(csv_path):
 
     y = df[target]
 
-    # --------------------------------------------------------
     # Target processing
-    # --------------------------------------------------------
 
     y = process_target(
         dataset_name,
@@ -414,9 +368,7 @@ def train_dataset(csv_path):
         y.value_counts()
     )
 
-    # --------------------------------------------------------
     # Remove identifier columns
-    # --------------------------------------------------------
 
     id_columns = detect_id_columns(
         X,
@@ -437,9 +389,7 @@ def train_dataset(csv_path):
             columns=id_columns
         )
 
-    # --------------------------------------------------------
     # Remove completely empty columns
-    # --------------------------------------------------------
 
     empty_columns = [
         column
@@ -461,9 +411,7 @@ def train_dataset(csv_path):
             columns=empty_columns
         )
 
-    # --------------------------------------------------------
     # Feature types
-    # --------------------------------------------------------
 
     (
         preprocessor,
@@ -485,9 +433,7 @@ def train_dataset(csv_path):
         f"{len(categorical_features)}"
     )
 
-    # --------------------------------------------------------
     # Determine number of classes
-    # --------------------------------------------------------
 
     number_of_classes = y.nunique()
 
@@ -496,9 +442,7 @@ def train_dataset(csv_path):
         f"{number_of_classes}"
     )
 
-    # --------------------------------------------------------
     # Train/test split
-    # --------------------------------------------------------
 
     try:
 
@@ -536,9 +480,7 @@ def train_dataset(csv_path):
         f"{len(X_test)}"
     )
 
-    # --------------------------------------------------------
     # Models
-    # --------------------------------------------------------
 
     models = get_models()
 
@@ -548,9 +490,7 @@ def train_dataset(csv_path):
 
     results = []
 
-    # --------------------------------------------------------
     # Train
-    # --------------------------------------------------------
 
     for model_name, model in models.items():
 
@@ -614,12 +554,10 @@ def train_dataset(csv_path):
                 }
             )
 
-            # ------------------------------------------------
             # Select based on macro F1.
             #
             # This is safer than selecting purely on accuracy
             # when classes are imbalanced.
-            # ------------------------------------------------
 
             if macro_f1 > best_score:
 
@@ -635,9 +573,7 @@ def train_dataset(csv_path):
                 f"Model failed: {error}"
             )
 
-    # --------------------------------------------------------
     # No model succeeded
-    # --------------------------------------------------------
 
     if best_pipeline is None:
 
@@ -647,9 +583,7 @@ def train_dataset(csv_path):
 
         return None
 
-    # --------------------------------------------------------
     # Final prediction
-    # --------------------------------------------------------
 
     predictions = best_pipeline.predict(
         X_test
@@ -666,9 +600,7 @@ def train_dataset(csv_path):
         average="macro"
     )
 
-    # --------------------------------------------------------
     # Best model
-    # --------------------------------------------------------
 
     print(
         "\n"
@@ -691,9 +623,7 @@ def train_dataset(csv_path):
         "=" * 65
     )
 
-    # --------------------------------------------------------
     # Classification report
-    # --------------------------------------------------------
 
     print(
         "\nClassification Report:"
@@ -707,9 +637,7 @@ def train_dataset(csv_path):
         )
     )
 
-    # --------------------------------------------------------
     # Save model
-    # --------------------------------------------------------
 
     model_path = (
         MODEL_DIR
@@ -725,9 +653,7 @@ def train_dataset(csv_path):
         f"Model saved: {model_path}"
     )
 
-    # --------------------------------------------------------
     # Save metadata
-    # --------------------------------------------------------
 
     metadata = {
 
@@ -794,10 +720,7 @@ def train_dataset(csv_path):
 
     return metadata
 
-
-# ============================================================
 # DISCOVER ALL DATASETS
-# ============================================================
 
 def discover_datasets():
 
@@ -814,10 +737,7 @@ def discover_datasets():
 
     return datasets
 
-
-# ============================================================
 # MAIN
-# ============================================================
 
 def main():
 
@@ -843,9 +763,7 @@ def main():
         "#" * 75
     )
 
-    # --------------------------------------------------------
     # Discover datasets automatically
-    # --------------------------------------------------------
 
     datasets = discover_datasets()
 
@@ -872,9 +790,7 @@ def main():
             f"  ✓ {dataset.name}"
         )
 
-    # --------------------------------------------------------
     # Train every dataset
-    # --------------------------------------------------------
 
     successful = []
 
@@ -923,9 +839,7 @@ def main():
                 dataset.name
             )
 
-    # --------------------------------------------------------
     # Final summary
-    # --------------------------------------------------------
 
     print("\n\n")
 
@@ -980,10 +894,7 @@ def main():
         "\nHealthcareAI automatic training complete."
     )
 
-
-# ============================================================
 # START
-# ============================================================
 
 if __name__ == "__main__":
 

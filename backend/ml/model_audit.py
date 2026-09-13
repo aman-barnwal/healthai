@@ -16,10 +16,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-
-# ==============================================================
 # CONFIGURATION
-# ==============================================================
 
 DATASET_DIR = Path("dataset")
 MODEL_DIR = Path("backend/models")
@@ -38,10 +35,7 @@ RANDOM_STATE = 123
 # Set to True only if you intentionally want to try loading huge models.
 FORCE_LOAD_HUGE_MODELS = False
 
-
-# ==============================================================
 # HELPERS
-# ==============================================================
 
 def print_header(title):
     print("\n" + "=" * 100)
@@ -95,9 +89,7 @@ def find_dataset(model_name, metadata):
     3. normalized name match
     """
 
-    # ----------------------------------------------------------
     # 1. METADATA
-    # ----------------------------------------------------------
 
     dataset_file = metadata.get("dataset_file")
 
@@ -113,9 +105,7 @@ def find_dataset(model_name, metadata):
         if matches:
             return matches[0]
 
-    # ----------------------------------------------------------
     # 2. EXACT MODEL NAME
-    # ----------------------------------------------------------
 
     candidates = list(DATASET_DIR.rglob("*.csv"))
 
@@ -123,9 +113,7 @@ def find_dataset(model_name, metadata):
         if file.stem.lower() == model_name.lower():
             return file
 
-    # ----------------------------------------------------------
     # 3. NORMALIZED MATCH
-    # ----------------------------------------------------------
 
     normalized_model = (
         model_name.lower()
@@ -357,10 +345,7 @@ def safe_value(value):
 
     return value
 
-
-# ==============================================================
 # MAIN AUDIT
-# ==============================================================
 
 print_header("HEALTHCAREAI ADVANCED MODEL AUDIT")
 
@@ -396,9 +381,7 @@ for model_path in model_files:
 
     print("Model size:", size_human)
 
-    # ----------------------------------------------------------
     # HUGE MODEL PROTECTION
-    # ----------------------------------------------------------
 
     if size_gb > MAX_MODEL_SIZE_GB:
 
@@ -429,9 +412,7 @@ for model_path in model_files:
 
             continue
 
-    # ----------------------------------------------------------
     # METADATA
-    # ----------------------------------------------------------
 
     metadata, metadata_path = load_metadata(model_name)
 
@@ -442,9 +423,7 @@ for model_path in model_files:
         print("Metadata: NOT FOUND")
         warnings_list.append("METADATA NOT FOUND")
 
-    # ----------------------------------------------------------
     # LOAD MODEL
-    # ----------------------------------------------------------
 
     model = None
 
@@ -507,9 +486,7 @@ for model_path in model_files:
 
         continue
 
-    # ----------------------------------------------------------
     # FIND DATASET
-    # ----------------------------------------------------------
 
     dataset_path = find_dataset(
         model_name,
@@ -547,9 +524,7 @@ for model_path in model_files:
 
     print("Dataset:", dataset_path)
 
-    # ----------------------------------------------------------
     # LOAD DATASET
-    # ----------------------------------------------------------
 
     try:
 
@@ -587,9 +562,7 @@ for model_path in model_files:
 
         continue
 
-    # ----------------------------------------------------------
     # DETECT TARGET
-    # ----------------------------------------------------------
 
     target = detect_target(
         df,
@@ -628,9 +601,7 @@ for model_path in model_files:
 
         continue
 
-    # ----------------------------------------------------------
     # CLEAN DATA
-    # ----------------------------------------------------------
 
     before_rows = len(df)
 
@@ -661,9 +632,7 @@ for model_path in model_files:
 
     y = df[target]
 
-    # ----------------------------------------------------------
     # REMOVE ID COLUMNS
-    # ----------------------------------------------------------
 
     X, id_columns = remove_id_columns(X)
 
@@ -673,9 +642,7 @@ for model_path in model_files:
             id_columns
         )
 
-    # ----------------------------------------------------------
     # FEATURE ALIGNMENT
-    # ----------------------------------------------------------
 
     expected_features = get_expected_features(model)
 
@@ -739,9 +706,7 @@ for model_path in model_files:
                 f"{len(extra_features)}"
             )
 
-    # ----------------------------------------------------------
     # DATA SUMMARY
-    # ----------------------------------------------------------
 
     print("Features:", X.shape)
     print("Classes:", y.nunique())
@@ -779,9 +744,7 @@ for model_path in model_files:
 
         continue
 
-    # ----------------------------------------------------------
     # SPLIT DATA
-    # ----------------------------------------------------------
 
     try:
 
@@ -831,9 +794,7 @@ for model_path in model_files:
 
         continue
 
-    # ----------------------------------------------------------
     # PREDICTION
-    # ----------------------------------------------------------
 
     try:
 
@@ -889,9 +850,7 @@ for model_path in model_files:
             f"{recall_macro:.4f}"
         )
 
-        # ------------------------------------------------------
         # WARNINGS
-        # ------------------------------------------------------
 
         if accuracy >= 0.995:
 
@@ -983,9 +942,7 @@ for model_path in model_files:
             ),
         })
 
-    # ----------------------------------------------------------
     # MEMORY CLEANUP
-    # ----------------------------------------------------------
 
     del model
     del df
@@ -1002,10 +959,7 @@ for model_path in model_files:
 
     gc.collect()
 
-
-# ==============================================================
 # FINAL REPORT
-# ==============================================================
 
 print_header("FINAL HEALTHCAREAI MODEL AUDIT REPORT")
 
@@ -1054,9 +1008,7 @@ else:
         )
     )
 
-    # ----------------------------------------------------------
     # SUMMARY
-    # ----------------------------------------------------------
 
     total = len(results_df)
 
@@ -1110,9 +1062,7 @@ else:
             f"| Macro F1: {best_model['macro_f1']:.4f}"
         )
 
-    # ----------------------------------------------------------
     # SAVE CSV
-    # ----------------------------------------------------------
 
     csv_path = (
         MODEL_DIR /
@@ -1124,9 +1074,7 @@ else:
         index=False
     )
 
-    # ----------------------------------------------------------
     # SAVE JSON
-    # ----------------------------------------------------------
 
     json_path = (
         MODEL_DIR /

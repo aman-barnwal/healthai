@@ -8,9 +8,7 @@ def create_app():
     # Allow frontend applications to communicate with the backend.
     CORS(app)
 
-    # ------------------------------------------------------------
     # BASIC HEALTH CHECK
-    # ------------------------------------------------------------
 
     @app.route("/", methods=["GET"])
     def home():
@@ -27,10 +25,7 @@ def create_app():
             "status": "healthy"
         })
 
-
-    # ------------------------------------------------------------
     # ROUTES
-    # ------------------------------------------------------------
 
     from backend.routes.chat import chat_bp
 
@@ -41,10 +36,7 @@ def create_app():
 
     return app
 
-
-# ------------------------------------------------------------
 # RUN SERVER
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
 

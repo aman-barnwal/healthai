@@ -32,19 +32,13 @@ def chat():
                 "error": "Message is required."
             }), 400
 
-
-        # ---------------------------------------------
         # SEND MESSAGE TO HYBRID AI ENGINE
-        # ---------------------------------------------
 
         reply = chat_with_healthcare_ai(
             message
         )
 
-
-        # ---------------------------------------------
         # RETURN RESPONSE TO FRONTEND
-        # ---------------------------------------------
 
         return jsonify({
 

@@ -5,19 +5,13 @@ from typing import Any
 import joblib
 import pandas as pd
 
-
-# ============================================================
 # PROJECT PATHS
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 MODELS_DIR = PROJECT_ROOT / "backend" / "models"
 
-
-# ============================================================
 # CACHES
-# ============================================================
 
 _MODEL_CACHE = {}
 
@@ -25,10 +19,7 @@ _FEATURE_CACHE = {}
 
 _METADATA_CACHE = {}
 
-
-# ============================================================
 # INTERNAL MODEL FILTER
-# ============================================================
 
 SKIP_MODELS = {
     "heart_disease_pipeline",
@@ -36,10 +27,7 @@ SKIP_MODELS = {
     "train_folds",
 }
 
-
-# ============================================================
 # GET MODEL PATH
-# ============================================================
 
 def get_model_path(model_name: str) -> Path:
 
@@ -67,10 +55,7 @@ def get_model_path(model_name: str) -> Path:
 
     return model_path
 
-
-# ============================================================
 # GET METADATA PATH
-# ============================================================
 
 def get_metadata_path(model_name: str) -> Path:
 
@@ -79,10 +64,7 @@ def get_metadata_path(model_name: str) -> Path:
         / f"{model_name}_metadata.json"
     )
 
-
-# ============================================================
 # LOAD MODEL
-# ============================================================
 
 def load_model(model_name: str):
 
@@ -115,10 +97,7 @@ def load_model(model_name: str):
 
     return model
 
-
-# ============================================================
 # CLEAR MODEL CACHE
-# ============================================================
 
 def clear_model_cache():
 
@@ -126,10 +105,7 @@ def clear_model_cache():
 
     _FEATURE_CACHE.clear()
 
-
-# ============================================================
 # LOAD METADATA
-# ============================================================
 
 def load_metadata(model_name: str) -> dict:
 
@@ -185,16 +161,11 @@ def load_metadata(model_name: str) -> dict:
 
     return metadata
 
-
-# ============================================================
 # EXTRACT FEATURES FROM MODEL
-# ============================================================
 
 def extract_features_from_model(model):
 
-    # --------------------------------------------------------
     # DIRECT MODEL FEATURES
-    # --------------------------------------------------------
 
     features = getattr(
         model,
@@ -208,9 +179,7 @@ def extract_features_from_model(model):
             features
         )
 
-    # --------------------------------------------------------
     # PIPELINE FEATURES
-    # --------------------------------------------------------
 
     if hasattr(
         model,
@@ -231,9 +200,7 @@ def extract_features_from_model(model):
                     features
                 )
 
-    # --------------------------------------------------------
     # COLUMN TRANSFORMER FEATURES
-    # --------------------------------------------------------
 
     if hasattr(
         model,
@@ -259,10 +226,7 @@ def extract_features_from_model(model):
 
     return []
 
-
-# ============================================================
 # GET EXACT FEATURE ORDER
-# ============================================================
 
 def get_expected_features(
     model_name: str
@@ -276,18 +240,14 @@ def get_expected_features(
             model_name
         ]
 
-    # --------------------------------------------------------
     # LOAD MODEL ONLY ONCE
-    # --------------------------------------------------------
 
     model = load_model(
         model_name
     )
 
-    # --------------------------------------------------------
     # FIRST PRIORITY:
     # MODEL FEATURE NAMES
-    # --------------------------------------------------------
 
     features = extract_features_from_model(
         model
@@ -305,10 +265,8 @@ def get_expected_features(
 
         return features
 
-    # --------------------------------------------------------
     # SECOND PRIORITY:
     # METADATA
-    # --------------------------------------------------------
 
     metadata = load_metadata(
         model_name
@@ -339,10 +297,7 @@ def get_expected_features(
         f"for model '{model_name}'."
     )
 
-
-# ============================================================
 # VALIDATE INPUT DATA
-# ============================================================
 
 def validate_input_data(
     model_name: str,
@@ -391,10 +346,7 @@ def validate_input_data(
 
     return ordered_data
 
-
-# ============================================================
 # BUILD MODEL INPUT
-# ============================================================
 
 def build_model_input(
     model_name: str,
@@ -410,10 +362,7 @@ def build_model_input(
         [ordered_data]
     )
 
-
-# ============================================================
 # CONVERT NUMPY VALUES TO PYTHON
-# ============================================================
 
 def convert_to_python(value: Any):
 
@@ -432,10 +381,7 @@ def convert_to_python(value: Any):
 
     return value
 
-
-# ============================================================
 # GET PREDICTION PROBABILITY
-# ============================================================
 
 def get_prediction_probability(
     model,
@@ -460,9 +406,7 @@ def get_prediction_probability(
 
             return None
 
-        # ----------------------------------------------------
         # BINARY CLASSIFICATION
-        # ----------------------------------------------------
 
         if len(probabilities) == 2:
 
@@ -470,11 +414,9 @@ def get_prediction_probability(
                 probabilities[1]
             )
 
-        # ----------------------------------------------------
         # MULTI-CLASS
         #
         # Return probability of predicted class
-        # ----------------------------------------------------
 
         classes = getattr(
             model,
@@ -502,10 +444,7 @@ def get_prediction_probability(
 
         return None
 
-
-# ============================================================
 # RUN PREDICTION
-# ============================================================
 
 def predict(
     model_name: str,
@@ -514,26 +453,20 @@ def predict(
 
     model_name = model_name.strip()
 
-    # --------------------------------------------------------
     # LOAD MODEL ONCE
-    # --------------------------------------------------------
 
     model = load_model(
         model_name
     )
 
-    # --------------------------------------------------------
     # BUILD INPUT
-    # --------------------------------------------------------
 
     input_df = build_model_input(
         model_name,
         data
     )
 
-    # --------------------------------------------------------
     # RUN PREDICTION
-    # --------------------------------------------------------
 
     try:
 
@@ -552,9 +485,7 @@ def predict(
         prediction
     )
 
-    # --------------------------------------------------------
     # PROBABILITY
-    # --------------------------------------------------------
 
     probability = get_prediction_probability(
         model,
@@ -562,9 +493,7 @@ def predict(
         prediction
     )
 
-    # --------------------------------------------------------
     # RESPONSE
-    # --------------------------------------------------------
 
     return {
 
@@ -586,10 +515,7 @@ def predict(
 
     }
 
-
-# ============================================================
 # LIST AVAILABLE MODELS
-# ============================================================
 
 def list_available_models() -> list:
 
@@ -605,9 +531,7 @@ def list_available_models() -> list:
 
         model_name = model_path.stem
 
-        # ----------------------------------------------------
         # SKIP GENERATED / NON-PREDICTION FILES
-        # ----------------------------------------------------
 
         if model_name.endswith(
             "_pipeline"
@@ -627,10 +551,7 @@ def list_available_models() -> list:
         models
     )
 
-
-# ============================================================
 # GET MODEL INFORMATION
-# ============================================================
 
 def get_model_info(
     model_name: str
@@ -670,10 +591,7 @@ def get_model_info(
 
     }
 
-
-# ============================================================
 # QUICK TEST
-# ============================================================
 
 if __name__ == "__main__":
 

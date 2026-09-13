@@ -1,8 +1,6 @@
 MODEL_SCHEMAS = {
 
-    # ============================================================
     # HEART DISEASE
-    # ============================================================
 
     "heart_disease_pipeline": {
         "description": "Heart disease risk classification",
@@ -87,10 +85,7 @@ MODEL_SCHEMAS = {
         }
     },
 
-
-    # ============================================================
     # BREAST CANCER
-    # ============================================================
 
     "breast_cancer": {
         "description": "Breast cancer classification",
@@ -109,11 +104,8 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # DIABETES BINARY
     # Exact fields used by diabetes_binary.pkl
-    # ============================================================
 
     "diabetes_binary": {
         "description": "Diabetes risk classification",
@@ -239,10 +231,7 @@ MODEL_SCHEMAS = {
         }
     },
 
-
-    # ============================================================
     # DIABETES HEALTH INDICATORS
-    # ============================================================
 
     "diabetes_health_indicators": {
         "description": "Diabetes health classification",
@@ -255,10 +244,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # STROKE
-    # ============================================================
 
     "stroke_prediction": {
         "description": "Stroke risk prediction",
@@ -272,10 +258,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # KIDNEY DISEASE
-    # ============================================================
 
     "kidney_disease_dataset": {
         "description": "Kidney disease assessment",
@@ -290,10 +273,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # PARKINSON'S
-    # ============================================================
 
     "parkinsons_classification": {
         "description": "Parkinson's disease classification",
@@ -307,10 +287,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # THYROID
-    # ============================================================
 
     "thyroid": {
         "description": "Thyroid disease classification",
@@ -324,10 +301,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # OBESITY
-    # ============================================================
 
     "obesity_levels": {
         "description": "Obesity level classification",
@@ -341,10 +315,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # MATERNAL HEALTH
-    # ============================================================
 
     "maternal_health_risk": {
         "description": "Maternal health risk classification",
@@ -358,10 +329,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # DRY EYE
-    # ============================================================
 
     "Dry_Eye_Dataset": {
         "description": "Dry eye disease classification",
@@ -375,10 +343,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # HEART FAILURE
-    # ============================================================
 
     "heart_failure_clinical_records": {
         "description": "Heart failure classification",
@@ -391,10 +356,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # HEPATITIS
-    # ============================================================
 
     "hepatitis": {
         "description": "Hepatitis classification",
@@ -407,10 +369,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # INDIAN LIVER
-    # ============================================================
 
     "indian_liver": {
         "description": "Liver disease classification",
@@ -424,10 +383,7 @@ MODEL_SCHEMAS = {
         "fields": {}
     },
 
-
-    # ============================================================
     # LUNG DISEASE
-    # ============================================================
 
     "lung_disease": {
         "description": "Lung disease classification",
