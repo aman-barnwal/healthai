@@ -163,9 +163,7 @@ class DiabetesAssessment:
 
         return "I didn't understand that. Could you try again?"
 
-    # ============================================================
     # AGE
-    # ============================================================
 
     def _process_age(self, message):
 
